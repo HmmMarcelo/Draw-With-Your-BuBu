@@ -17,11 +17,11 @@
       <section class="join-bar">
         <div class="join-group">
           <input id="room-input" type="text" placeholder="Enter room code" maxlength="20" autocomplete="off" />
-          <button id="join-btn" type="button">Join Room</button>
+          <button id="join-btn" type="button" title="Join Room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
         </div>
         <div class="join-group">
-          <button id="new-room-btn" type="button">New Room</button>
-          <button id="copy-link" type="button">Copy Invite Link</button>
+          <button id="new-room-btn" type="button" title="New Room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button id="copy-link" type="button" title="Copy Invite Link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
         </div>
         <div class="join-info">
           <p id="presence" class="status-pill">Connecting...</p>
@@ -39,36 +39,36 @@
 
       <section class="controls">
         <div class="tool-wrap">
-          <button id="color-btn" type="button" class="color-swatch-btn" style="background:#13293d"></button>
+          <button id="color-btn" type="button" class="color-swatch-btn" style="background:#13293d" title="Color"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5" fill="rgba(255,255,255,0.7)"/><circle cx="17.5" cy="10.5" r="1.5" fill="rgba(255,255,255,0.7)"/><circle cx="8.5" cy="7.5" r="1.5" fill="rgba(255,255,255,0.7)"/><circle cx="6.5" cy="12" r="1.5" fill="rgba(255,255,255,0.7)"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9Z"/></svg></button>
           <div class="tool-popup" id="color-popup">
             <input id="color" type="color" value="#13293d" />
             <button id="color-ok" type="button">OK</button>
           </div>
         </div>
         <div class="tool-wrap">
-          <button id="brush-btn" type="button" class="tool-btn active">Brush</button>
+          <button id="brush-btn" type="button" class="tool-btn active" title="Brush"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
           <div class="tool-popup" id="brush-popup">
             <input id="brush" type="range" min="1" max="24" value="4" />
             <span id="brush-value">4px</span>
           </div>
         </div>
         <div class="tool-wrap">
-          <button id="eraser-btn" type="button" class="tool-btn">Eraser</button>
+          <button id="eraser-btn" type="button" class="tool-btn" title="Eraser"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
           <div class="tool-popup" id="eraser-popup">
             <input id="eraser-size" type="range" min="4" max="60" value="20" />
             <span id="eraser-size-value">20px</span>
           </div>
         </div>
-        <button id="bucket-btn" type="button">Fill</button>
+        <button id="bucket-btn" type="button" title="Fill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0Z"/><path d="m5 2 5 5"/><path d="M22 20.3c0 .8-.7 1.7-1.5 1.7s-1.5-.9-1.5-1.7c0-1 1.5-2.8 1.5-2.8s1.5 1.8 1.5 2.8Z"/></svg></button>
         <div class="controls-spacer"></div>
         <div class="tool-wrap">
-          <button id="download-btn" type="button">Download</button>
+          <button id="download-btn" type="button" title="Download"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
           <div class="tool-popup" id="download-popup">
             <button id="dl-png" type="button">PNG (transparent)</button>
             <button id="dl-jpg" type="button">JPG (with background)</button>
           </div>
         </div>
-        <button id="clear" type="button">Clear canvas</button>
+        <button id="clear" type="button" title="Clear Canvas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
       </section>
 
       <section class="canvas-stage">
