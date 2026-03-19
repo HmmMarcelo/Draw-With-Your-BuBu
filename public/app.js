@@ -17,6 +17,10 @@ const eraserBtn = document.getElementById("eraser-btn");
 const eraserSizeInput = document.getElementById("eraser-size");
 const eraserSizeValue = document.getElementById("eraser-size-value");
 const darkToggle = document.getElementById("dark-toggle");
+const downloadBtn = document.getElementById("download-btn");
+const downloadWrap = downloadBtn.closest(".tool-wrap");
+const dlPng = document.getElementById("dl-png");
+const dlJpg = document.getElementById("dl-jpg");
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
 
@@ -133,6 +137,21 @@ function setupUI() {
   document.addEventListener("click", (e) => {
     if (!brushWrap.contains(e.target)) brushWrap.classList.remove("open");
     if (!eraserWrap.contains(e.target)) eraserWrap.classList.remove("open");
+    if (!downloadWrap.contains(e.target)) downloadWrap.classList.remove("open");
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    downloadWrap.classList.toggle("open");
+  });
+
+  dlPng.addEventListener("click", () => {
+    downloadImage("png");
+    downloadWrap.classList.remove("open");
+  });
+
+  dlJpg.addEventListener("click", () => {
+    downloadImage("jpg");
+    downloadWrap.classList.remove("open");
   });
 
   darkToggle.addEventListener("click", () => {
@@ -148,6 +167,7 @@ function setupUI() {
   }
 
   clearButton.addEventListener("click", () => {
+    if (!confirm("Are you sure you want to clear the canvas?")) return;
     clearCanvas();
     socket.emit("clear_canvas");
   });
@@ -212,6 +232,32 @@ function clearCanvas() {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, board.width, board.height);
   ctx.restore();
+}
+
+function downloadImage(format) {
+  const link = document.createElement("a");
+  if (format === "jpg") {
+    link.download = "drawing.jpg";
+    link.href = board.toDataURL("image/jpeg", 0.95);
+  } else {
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = board.width;
+    tempCanvas.height = board.height;
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.drawImage(board, 0, 0);
+    // Remove white background by making white pixels transparent
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
+        data[i + 3] = 0;
+      }
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+    link.download = "drawing.png";
+    link.href = tempCanvas.toDataURL("image/png");
+  }
+  link.click();
 }
 
 function drawSegment(from, to, color, size) {

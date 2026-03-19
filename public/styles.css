@@ -243,6 +243,26 @@ h1 {
   border-top: 1px solid var(--border);
 }
 
+.controls-spacer {
+  flex: 1;
+}
+
+#download-btn {
+  background: #edf6ff;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+#download-popup {
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+#download-popup button {
+  width: 100%;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
 .tool-wrap.open .tool-popup {
   display: flex;
 }
