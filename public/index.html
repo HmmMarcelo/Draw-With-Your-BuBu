@@ -38,10 +38,13 @@
       </header>
 
       <section class="controls">
-        <label>
-          Color
-          <input id="color" type="color" value="#13293d" />
-        </label>
+        <div class="tool-wrap">
+          <button id="color-btn" type="button" class="color-swatch-btn" style="background:#13293d"></button>
+          <div class="tool-popup" id="color-popup">
+            <input id="color" type="color" value="#13293d" />
+            <button id="color-ok" type="button">OK</button>
+          </div>
+        </div>
         <div class="tool-wrap">
           <button id="brush-btn" type="button" class="tool-btn active">Brush</button>
           <div class="tool-popup" id="brush-popup">

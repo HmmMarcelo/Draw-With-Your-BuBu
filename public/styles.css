@@ -247,6 +247,31 @@ h1 {
   flex: 1;
 }
 
+.color-swatch-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.5);
+}
+
+.color-swatch-btn:hover {
+  transform: scale(1.1);
+}
+
+#color-popup {
+  gap: 0.5rem;
+  align-items: center;
+}
+
+#color-ok {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+
 #download-btn {
   background: #edf6ff;
   border-color: rgba(59, 130, 246, 0.3);
@@ -257,8 +282,8 @@ body.dark #download-btn {
 }
 
 #bucket-btn {
-  background: #fef9c3;
-  border-color: rgba(202, 138, 4, 0.3);
+  background: #f0f0f0;
+  border-color: var(--border);
 }
 
 #bucket-btn.active {
@@ -268,7 +293,7 @@ body.dark #download-btn {
 }
 
 body.dark #bucket-btn {
-  background: rgba(202, 138, 4, 0.15);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 body.dark #bucket-btn.active {
