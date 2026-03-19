@@ -388,6 +388,39 @@ function floodFill(startX, startY, hexColor) {
     }
   }
 
+  // Boundary cleanup: dilate fill into anti-aliased fringe pixels.
+  // Any non-filled pixel adjacent to a filled pixel gets overwritten
+  // unless it's very close to the stroke color (the hard boundary).
+  for (let pass = 0; pass < 3; pass++) {
+    const edgePixels = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const pi = y * w + x;
+        if (visited[pi]) continue;
+        const i = pi * 4;
+        // Skip pixels that are already the fill color
+        if (data[i] === r && data[i + 1] === g && data[i + 2] === b) continue;
+        // Check if any neighbor is filled
+        let hasFilledNeighbor = false;
+        if (x > 0 && visited[pi - 1]) hasFilledNeighbor = true;
+        else if (x < w - 1 && visited[pi + 1]) hasFilledNeighbor = true;
+        else if (y > 0 && visited[pi - w]) hasFilledNeighbor = true;
+        else if (y < h - 1 && visited[pi + w]) hasFilledNeighbor = true;
+        if (hasFilledNeighbor) {
+          edgePixels.push(pi);
+        }
+      }
+    }
+    for (const pi of edgePixels) {
+      const i = pi * 4;
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+      visited[pi] = 1;
+    }
+  }
+
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.putImageData(imageData, 0, 0);
