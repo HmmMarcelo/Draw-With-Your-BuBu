@@ -291,13 +291,65 @@ function downloadImage(format) {
 function drawSegment(from, to, color, size) {
   const start = denormalizePoint(from);
   const end = denormalizePoint(to);
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = size;
-  ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
-  ctx.lineTo(end.x, end.y);
-  ctx.stroke();
+  // Convert CSS coords to raw pixel coords
+  const x0 = Math.round(start.x * dpr);
+  const y0 = Math.round(start.y * dpr);
+  const x1 = Math.round(end.x * dpr);
+  const y1 = Math.round(end.y * dpr);
+  const radius = Math.max(1, Math.round((size * dpr) / 2));
+
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+
+  const w = board.width;
+  const h = board.height;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  // Stamp a filled circle of the given color at (cx, cy)
+  function stamp(cx, cy) {
+    const rSq = radius * radius;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const py = cy + dy;
+      if (py < 0 || py >= h) continue;
+      for (let dx = -radius; dx <= radius; dx++) {
+        const px = cx + dx;
+        if (px < 0 || px >= w) continue;
+        if (dx * dx + dy * dy <= rSq) {
+          const i = (py * w + px) * 4;
+          data[i] = r;
+          data[i + 1] = g;
+          data[i + 2] = b;
+          data[i + 3] = 255;
+        }
+      }
+    }
+  }
+
+  // Bresenham's line: stamp brush at every pixel along the line
+  let dx = Math.abs(x1 - x0);
+  let dy = -Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  let cx = x0, cy = y0;
+
+  while (true) {
+    stamp(cx, cy);
+    if (cx === x1 && cy === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; cx += sx; }
+    if (e2 <= dx) { err += dx; cy += sy; }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  ctx.restore();
 }
 
 function floodFill(startX, startY, hexColor) {
