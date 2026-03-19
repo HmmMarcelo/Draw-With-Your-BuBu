@@ -27,6 +27,7 @@ const colorPopupWrap = colorBtn.closest(".tool-wrap");
 const colorOk = document.getElementById("color-ok");
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
+const eraserCursor = document.getElementById("eraser-cursor");
 
 let drawing = false;
 let lastPoint = null;
@@ -139,7 +140,27 @@ function setupUI() {
 
   board.addEventListener("pointerup", stopDrawing);
   board.addEventListener("pointercancel", stopDrawing);
-  board.addEventListener("pointerleave", stopDrawing);
+  board.addEventListener("pointerleave", () => {
+    stopDrawing();
+    eraserCursor.style.display = "none";
+  });
+
+  board.addEventListener("pointermove", (event) => {
+    if (erasing) {
+      const rect = board.getBoundingClientRect();
+      const size = Number(eraserSizeInput.value);
+      eraserCursor.style.display = "block";
+      eraserCursor.style.width = size + "px";
+      eraserCursor.style.height = size + "px";
+      const stageRect = board.closest(".canvas-stage").getBoundingClientRect();
+      eraserCursor.style.left = (event.clientX - stageRect.left) + "px";
+      eraserCursor.style.top = (event.clientY - stageRect.top) + "px";
+    }
+  });
+
+  board.addEventListener("pointerenter", () => {
+    if (erasing) eraserCursor.style.display = "block";
+  });
 
   brushInput.addEventListener("input", () => {
     brushValue.textContent = `${brushInput.value}px`;
@@ -157,7 +178,8 @@ function setupUI() {
     bucketBtn.classList.toggle("active", tool === "fill");
     brushWrap.classList.toggle("open", tool === "brush");
     eraserWrap.classList.toggle("open", tool === "eraser");
-    board.style.cursor = tool === "eraser" ? "cell" : tool === "fill" ? "pointer" : "crosshair";
+    board.style.cursor = tool === "eraser" ? "none" : tool === "fill" ? "pointer" : "crosshair";
+    if (tool !== "eraser") eraserCursor.style.display = "none";
   }
 
   brushBtn.addEventListener("click", () => selectTool("brush"));
