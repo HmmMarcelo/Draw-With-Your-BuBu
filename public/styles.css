@@ -444,6 +444,15 @@ body.dark #eraser-cursor {
   border-color: var(--border);
 }
 
+.active-layer-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
 body.dark #layers-btn {
   background: rgba(255, 255, 255, 0.1);
 }
@@ -468,8 +477,17 @@ body.dark #layers-btn {
   gap: 0.4rem;
   padding: 0.3rem 0.45rem;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: grab;
   font-size: 0.88rem;
+  transition: background 80ms ease;
+}
+
+.layer-item.dragging {
+  opacity: 0.4;
+}
+
+.layer-item.drag-over {
+  border-top: 2px solid var(--accent);
 }
 
 .layer-item:hover {

@@ -29,6 +29,7 @@ const layersWrap = document.getElementById("layers-wrap");
 const addLayerBtn = document.getElementById("add-layer-btn");
 const removeLayerBtn = document.getElementById("remove-layer-btn");
 const layersList = document.getElementById("layers-list");
+const activeLayerLabel = document.getElementById("active-layer-label");
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
 const eraserCursor = document.getElementById("eraser-cursor");
@@ -535,6 +536,7 @@ function createLayerCanvas() {
 function addLayer() {
   layers.push(createLayerCanvas());
   activeLayerIndex = layers.length - 1;
+  updateLayerLabel();
   renderLayersList();
 }
 
@@ -543,6 +545,7 @@ function removeLayer(index) {
   layers.splice(index, 1);
   if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
   compositeLayers();
+  updateLayerLabel();
   renderLayersList();
 }
 
@@ -556,13 +559,24 @@ function compositeLayers() {
   boardCtx.restore();
 }
 
+function updateLayerLabel() {
+  if (!activeLayerLabel) return;
+  const l = layers[activeLayerIndex];
+  activeLayerLabel.textContent = l ? l.name : "";
+}
+
 function renderLayersList() {
   if (!layersList) return;
+  updateLayerLabel();
   layersList.innerHTML = "";
+  let dragSrcIndex = null;
+
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
     const item = document.createElement("div");
     item.className = "layer-item" + (i === activeLayerIndex ? " active" : "");
+    item.draggable = true;
+    item.dataset.index = i;
 
     const vis = document.createElement("button");
     vis.className = "layer-vis";
@@ -583,6 +597,44 @@ function renderLayersList() {
     item.appendChild(name);
     item.addEventListener("click", () => {
       activeLayerIndex = i;
+      updateLayerLabel();
+      renderLayersList();
+    });
+
+    // Drag events
+    item.addEventListener("dragstart", (e) => {
+      dragSrcIndex = i;
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      layersList.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      layersList.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+      item.classList.add("drag-over");
+    });
+    item.addEventListener("dragleave", () => {
+      item.classList.remove("drag-over");
+    });
+    item.addEventListener("drop", (e) => {
+      e.preventDefault();
+      item.classList.remove("drag-over");
+      const dropIndex = parseInt(item.dataset.index, 10);
+      if (dragSrcIndex === null || dragSrcIndex === dropIndex) return;
+      const moved = layers.splice(dragSrcIndex, 1)[0];
+      layers.splice(dropIndex, 0, moved);
+      if (activeLayerIndex === dragSrcIndex) {
+        activeLayerIndex = dropIndex;
+      } else {
+        if (activeLayerIndex > dragSrcIndex && activeLayerIndex <= dropIndex) activeLayerIndex--;
+        else if (activeLayerIndex < dragSrcIndex && activeLayerIndex >= dropIndex) activeLayerIndex++;
+      }
+      compositeLayers();
+      updateLayerLabel();
       renderLayersList();
     });
 
