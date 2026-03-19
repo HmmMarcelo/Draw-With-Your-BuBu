@@ -31,6 +31,34 @@ body.dark button {
   color: var(--ink);
 }
 
+body.dark #join-btn {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+body.dark #new-room-btn {
+  background: rgba(147, 51, 234, 0.15);
+}
+
+body.dark #copy-link {
+  background: rgba(64, 145, 108, 0.15);
+}
+
+body.dark #clear {
+  background: rgba(239, 131, 84, 0.15);
+}
+
+body.dark .tool-btn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+body.dark .tool-btn.active {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+body.dark #eraser-btn.active {
+  background: rgba(220, 38, 38, 0.2);
+}
+
 body.dark .join-bar input[type="text"] {
   background: rgba(255, 255, 255, 0.06);
   color: var(--ink);
@@ -219,12 +247,44 @@ h1 {
   display: flex;
 }
 
+@keyframes floatBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
 #dark-toggle {
-  font-size: 1.35rem;
-  background: transparent;
-  border: none;
-  padding: 0.3rem 0.5rem;
+  font-size: 1.6rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255,255,255,0.6);
+  padding: 0;
   cursor: pointer;
+  animation: floatBob 3s ease-in-out infinite;
+  transition: background 300ms ease, box-shadow 300ms ease;
+}
+
+#dark-toggle:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255,255,255,0.7);
+}
+
+body.dark #dark-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255,255,255,0.1);
+}
+
+body.dark #dark-toggle:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 button {
