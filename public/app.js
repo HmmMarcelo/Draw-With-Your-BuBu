@@ -1,7 +1,7 @@
 const socket = io();
 
 const board = document.getElementById("board");
-const ctx = board.getContext("2d", { alpha: false });
+const boardCtx = board.getContext("2d");
 const colorInput = document.getElementById("color");
 const brushInput = document.getElementById("brush");
 const brushValue = document.getElementById("brush-value");
@@ -22,9 +22,13 @@ const downloadWrap = downloadBtn.closest(".tool-wrap");
 const dlPng = document.getElementById("dl-png");
 const dlJpg = document.getElementById("dl-jpg");
 const bucketBtn = document.getElementById("bucket-btn");
-const colorInput = document.getElementById("color");
 const colorWrap = document.getElementById("color-wrap");
 const colorOk = document.getElementById("color-ok");
+const layersBtn = document.getElementById("layers-btn");
+const layersWrap = document.getElementById("layers-wrap");
+const addLayerBtn = document.getElementById("add-layer-btn");
+const removeLayerBtn = document.getElementById("remove-layer-btn");
+const layersList = document.getElementById("layers-list");
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
 const eraserCursor = document.getElementById("eraser-cursor");
@@ -35,10 +39,11 @@ let erasing = false;
 let filling = false;
 let roomId = getRoomFromUrl();
 
-ctx.fillStyle = "#ffffff";
-ctx.fillRect(0, 0, board.width, board.height);
+let layers = [];
+let activeLayerIndex = 0;
 
 configureCanvas();
+addLayer();
 setupRoom();
 setupSocket();
 setupUI();
@@ -80,13 +85,14 @@ function setupSocket() {
   });
 
   socket.on("draw_segment", (segment) => {
+    const li = segment.layer !== undefined && segment.layer < layers.length ? segment.layer : 0;
     if (segment.fill) {
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       const px = Math.floor(segment.x * board.clientWidth * dpr);
       const py = Math.floor(segment.y * board.clientHeight * dpr);
-      floodFill(px, py, segment.color);
+      floodFill(px, py, segment.color, li);
     } else {
-      drawSegment(segment.from, segment.to, segment.color, segment.size);
+      drawSegment(segment.from, segment.to, segment.color, segment.size, li, segment.erase);
     }
   });
 
@@ -101,12 +107,13 @@ function setupUI() {
       const px = Math.floor(pt.x * dpr);
       const py = Math.floor(pt.y * dpr);
       const color = colorInput.value;
-      floodFill(px, py, color);
+      floodFill(px, py, color, activeLayerIndex);
       socket.emit("draw_segment", {
         fill: true,
         x: pt.x / board.clientWidth,
         y: pt.y / board.clientHeight,
-        color
+        color,
+        layer: activeLayerIndex
       });
       return;
     }
@@ -119,15 +126,17 @@ function setupUI() {
     if (!drawing || !lastPoint) return;
 
     const nextPoint = getRelativePoint(event);
-    const color = erasing ? "#ffffff" : colorInput.value;
+    const color = colorInput.value;
     const size = erasing ? Number(eraserSizeInput.value) : Number(brushInput.value);
 
-    drawSegment(lastPoint, nextPoint, color, size);
+    drawSegment(lastPoint, nextPoint, color, size, activeLayerIndex, erasing);
     socket.emit("draw_segment", {
       from: normalizePoint(lastPoint),
       to: normalizePoint(nextPoint),
       color,
-      size
+      size,
+      layer: activeLayerIndex,
+      erase: erasing
     });
 
     lastPoint = nextPoint;
@@ -191,6 +200,7 @@ function setupUI() {
     if (!eraserWrap.contains(e.target)) eraserWrap.classList.remove("open");
     if (!downloadWrap.contains(e.target)) downloadWrap.classList.remove("open");
     if (!colorWrap.contains(e.target)) colorWrap.classList.remove("open");
+    if (!layersWrap.contains(e.target)) layersWrap.classList.remove("open");
   });
 
   colorInput.addEventListener("input", () => {
@@ -259,6 +269,14 @@ function setupUI() {
     applyRoom(generateRoomCode());
   });
 
+  layersBtn.addEventListener("click", () => {
+    layersWrap.classList.toggle("open");
+    renderLayersList();
+  });
+
+  addLayerBtn.addEventListener("click", () => addLayer());
+  removeLayerBtn.addEventListener("click", () => removeLayer(activeLayerIndex));
+
   window.addEventListener("resize", configureCanvas);
 }
 
@@ -269,84 +287,97 @@ function configureCanvas() {
 
   if (!cssWidth || !cssHeight) return;
 
-  const snapshot = board.toDataURL();
+  const w = Math.floor(cssWidth * dpr);
+  const h = Math.floor(cssHeight * dpr);
 
-  board.width = Math.floor(cssWidth * dpr);
-  board.height = Math.floor(cssHeight * dpr);
+  // Save layer contents
+  const temps = layers.map(l => {
+    const t = document.createElement("canvas");
+    t.width = l.canvas.width;
+    t.height = l.canvas.height;
+    t.getContext("2d").drawImage(l.canvas, 0, 0);
+    return t;
+  });
 
-  // Keep strokes crisp on high-DPI displays while drawing in CSS pixels.
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.imageSmoothingEnabled = false;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+  board.width = w;
+  board.height = h;
+  boardCtx.imageSmoothingEnabled = false;
 
-  const img = new Image();
-  img.onload = () => {
-    clearCanvas();
-    ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
-  };
-  img.src = snapshot;
+  layers.forEach((l, i) => {
+    const oldW = l.canvas.width;
+    const oldH = l.canvas.height;
+    l.canvas.width = w;
+    l.canvas.height = h;
+    l.ctx.imageSmoothingEnabled = false;
+    if (oldW && oldH) {
+      l.ctx.drawImage(temps[i], 0, 0, w, h);
+    }
+  });
+
+  compositeLayers();
 }
 
 function clearCanvas() {
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, board.width, board.height);
-  ctx.restore();
+  layers.forEach(l => {
+    l.ctx.clearRect(0, 0, l.canvas.width, l.canvas.height);
+  });
+  compositeLayers();
 }
 
 function downloadImage(format) {
   const link = document.createElement("a");
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = board.width;
+  tempCanvas.height = board.height;
+  const tempCtx = tempCanvas.getContext("2d");
+
+  if (format === "jpg") {
+    tempCtx.fillStyle = "#ffffff";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  }
+
+  layers.forEach(l => {
+    if (l.visible) tempCtx.drawImage(l.canvas, 0, 0);
+  });
+
   if (format === "jpg") {
     link.download = "drawing.jpg";
-    link.href = board.toDataURL("image/jpeg", 0.95);
+    link.href = tempCanvas.toDataURL("image/jpeg", 0.95);
   } else {
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = board.width;
-    tempCanvas.height = board.height;
-    const tempCtx = tempCanvas.getContext("2d");
-    tempCtx.drawImage(board, 0, 0);
-    // Remove white background by making white pixels transparent
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
-        data[i + 3] = 0;
-      }
-    }
-    tempCtx.putImageData(imageData, 0, 0);
     link.download = "drawing.png";
     link.href = tempCanvas.toDataURL("image/png");
   }
   link.click();
 }
 
-function drawSegment(from, to, color, size) {
+function drawSegment(from, to, color, size, layerIdx, isErase) {
+  const li = layerIdx !== undefined ? layerIdx : activeLayerIndex;
+  const layer = layers[li];
+  if (!layer) return;
+  const lCtx = layer.ctx;
   const start = denormalizePoint(from);
   const end = denormalizePoint(to);
   const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-  // Convert CSS coords to raw pixel coords
   const x0 = Math.round(start.x * dpr);
   const y0 = Math.round(start.y * dpr);
   const x1 = Math.round(end.x * dpr);
   const y1 = Math.round(end.y * dpr);
   const radius = Math.max(1, Math.round((size * dpr) / 2));
 
-  const r = parseInt(color.slice(1, 3), 16);
-  const g = parseInt(color.slice(3, 5), 16);
-  const b = parseInt(color.slice(5, 7), 16);
+  let r = 0, g = 0, b = 0;
+  if (!isErase) {
+    r = parseInt(color.slice(1, 3), 16);
+    g = parseInt(color.slice(3, 5), 16);
+    b = parseInt(color.slice(5, 7), 16);
+  }
 
   const w = board.width;
   const h = board.height;
 
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const imageData = ctx.getImageData(0, 0, w, h);
+  const imageData = lCtx.getImageData(0, 0, w, h);
   const data = imageData.data;
 
-  // Stamp a filled circle of the given color at (cx, cy)
   function stamp(cx, cy) {
     const rSq = radius * radius;
     for (let dy = -radius; dy <= radius; dy++) {
@@ -357,16 +388,22 @@ function drawSegment(from, to, color, size) {
         if (px < 0 || px >= w) continue;
         if (dx * dx + dy * dy <= rSq) {
           const i = (py * w + px) * 4;
-          data[i] = r;
-          data[i + 1] = g;
-          data[i + 2] = b;
-          data[i + 3] = 255;
+          if (isErase) {
+            data[i] = 0;
+            data[i + 1] = 0;
+            data[i + 2] = 0;
+            data[i + 3] = 0;
+          } else {
+            data[i] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+            data[i + 3] = 255;
+          }
         }
       }
     }
   }
 
-  // Bresenham's line: stamp brush at every pixel along the line
   let dx = Math.abs(x1 - x0);
   let dy = -Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1;
@@ -382,20 +419,21 @@ function drawSegment(from, to, color, size) {
     if (e2 <= dx) { err += dx; cy += sy; }
   }
 
-  ctx.putImageData(imageData, 0, 0);
-  ctx.restore();
+  lCtx.putImageData(imageData, 0, 0);
+  compositeLayers();
 }
 
-function floodFill(startX, startY, hexColor) {
+function floodFill(startX, startY, hexColor, layerIdx) {
+  const li = layerIdx !== undefined ? layerIdx : activeLayerIndex;
+  const layer = layers[li];
+  if (!layer) return;
+  const lCtx = layer.ctx;
   const w = board.width;
   const h = board.height;
   if (startX < 0 || startX >= w || startY < 0 || startY >= h) return;
 
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const imageData = ctx.getImageData(0, 0, w, h);
+  const imageData = lCtx.getImageData(0, 0, w, h);
   const data = imageData.data;
-  ctx.restore();
 
   const r = parseInt(hexColor.slice(1, 3), 16);
   const g = parseInt(hexColor.slice(3, 5), 16);
@@ -404,7 +442,7 @@ function floodFill(startX, startY, hexColor) {
   const idx = (startY * w + startX) * 4;
   const sr = data[idx], sg = data[idx + 1], sb = data[idx + 2], sa = data[idx + 3];
 
-  if (sr === r && sg === g && sb === b) return;
+  if (sr === r && sg === g && sb === b && sa === 255) return;
 
   function matches(i) {
     return data[i] === sr && data[i + 1] === sg && data[i + 2] === sb && data[i + 3] === sa;
@@ -446,10 +484,8 @@ function floodFill(startX, startY, hexColor) {
     }
   }
 
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.putImageData(imageData, 0, 0);
-  ctx.restore();
+  lCtx.putImageData(imageData, 0, 0);
+  compositeLayers();
 }
 
 function normalizePoint(point) {
@@ -485,4 +521,71 @@ function getRoomFromUrl() {
 
 function generateRoomCode() {
   return Math.random().toString(36).slice(2, 8);
+}
+
+function createLayerCanvas() {
+  const c = document.createElement("canvas");
+  c.width = board.width;
+  c.height = board.height;
+  const lCtx = c.getContext("2d");
+  lCtx.imageSmoothingEnabled = false;
+  return { canvas: c, ctx: lCtx, name: "Layer " + layers.length, visible: true };
+}
+
+function addLayer() {
+  layers.push(createLayerCanvas());
+  activeLayerIndex = layers.length - 1;
+  renderLayersList();
+}
+
+function removeLayer(index) {
+  if (layers.length <= 1) return;
+  layers.splice(index, 1);
+  if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
+  compositeLayers();
+  renderLayersList();
+}
+
+function compositeLayers() {
+  boardCtx.save();
+  boardCtx.setTransform(1, 0, 0, 1, 0, 0);
+  boardCtx.clearRect(0, 0, board.width, board.height);
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i].visible) boardCtx.drawImage(layers[i].canvas, 0, 0);
+  }
+  boardCtx.restore();
+}
+
+function renderLayersList() {
+  if (!layersList) return;
+  layersList.innerHTML = "";
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const l = layers[i];
+    const item = document.createElement("div");
+    item.className = "layer-item" + (i === activeLayerIndex ? " active" : "");
+
+    const vis = document.createElement("button");
+    vis.className = "layer-vis";
+    vis.textContent = l.visible ? "\uD83D\uDC41" : "\u2014";
+    vis.title = l.visible ? "Hide layer" : "Show layer";
+    vis.addEventListener("click", (e) => {
+      e.stopPropagation();
+      l.visible = !l.visible;
+      compositeLayers();
+      renderLayersList();
+    });
+
+    const name = document.createElement("span");
+    name.className = "layer-name";
+    name.textContent = l.name;
+
+    item.appendChild(vis);
+    item.appendChild(name);
+    item.addEventListener("click", () => {
+      activeLayerIndex = i;
+      renderLayersList();
+    });
+
+    layersList.appendChild(item);
+  }
 }
