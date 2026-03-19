@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Draw Together</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="join-bar">
+        <div class="join-group">
+          <input id="room-input" type="text" placeholder="Enter room code" maxlength="20" autocomplete="off" />
+          <button id="join-btn" type="button">Join Room</button>
+        </div>
+        <div class="join-group">
+          <button id="new-room-btn" type="button">New Room</button>
+        </div>
+        <div class="join-info">
+          <p id="presence" class="status-pill">Connecting...</p>
+          <p id="room-code" class="room-text"></p>
+        </div>
+      </section>
+
+      <header class="topbar">
+        <div>
+          <h1>Draw Together</h1>
+          <p class="subtitle">Share a room code, draw with your bubu.</p>
+        </div>
+      </header>
+
+      <section class="controls">
+        <label>
+          Color
+          <input id="color" type="color" value="#13293d" />
+        </label>
+        <label>
+          Brush
+          <input id="brush" type="range" min="1" max="24" value="4" />
+          <span id="brush-value">4px</span>
+        </label>
+        <button id="clear" type="button">Clear canvas</button>
+        <button id="copy-link" type="button">Copy invite link</button>
+      </section>
+
+      <section class="canvas-stage">
+        <canvas id="board"></canvas>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

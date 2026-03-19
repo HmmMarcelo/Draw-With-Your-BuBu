@@ -1,0 +1,21 @@
+{
+  "name": "draw-together",
+  "version": "1.0.0",
+  "description": "Two-person real-time collaborative drawing canvas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "drawing",
+    "socket.io",
+    "collaboration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
