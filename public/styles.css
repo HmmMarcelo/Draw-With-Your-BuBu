@@ -150,6 +150,17 @@ button:active {
   transform: translateY(0);
 }
 
+#eraser {
+  background: #f0f0f0;
+  border-color: var(--border);
+}
+
+#eraser.active {
+  background: #ffd6d6;
+  border-color: rgba(220, 38, 38, 0.4);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
 #clear {
   background: #fff2eb;
   border-color: rgba(239, 131, 84, 0.35);

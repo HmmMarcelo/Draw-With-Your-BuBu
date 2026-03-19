@@ -12,9 +12,13 @@ const roomText = document.getElementById("room-code");
 const roomInput = document.getElementById("room-input");
 const joinBtn = document.getElementById("join-btn");
 const newRoomBtn = document.getElementById("new-room-btn");
+const eraserBtn = document.getElementById("eraser");
+const eraserSizeInput = document.getElementById("eraser-size");
+const eraserSizeValue = document.getElementById("eraser-size-value");
 
 let drawing = false;
 let lastPoint = null;
+let erasing = false;
 let roomId = getRoomFromUrl();
 
 ctx.fillStyle = "#ffffff";
@@ -79,8 +83,8 @@ function setupUI() {
     if (!drawing || !lastPoint) return;
 
     const nextPoint = getRelativePoint(event);
-    const color = colorInput.value;
-    const size = Number(brushInput.value);
+    const color = erasing ? "#ffffff" : colorInput.value;
+    const size = erasing ? Number(eraserSizeInput.value) : Number(brushInput.value);
 
     drawSegment(lastPoint, nextPoint, color, size);
     socket.emit("draw_segment", {
@@ -104,6 +108,16 @@ function setupUI() {
 
   brushInput.addEventListener("input", () => {
     brushValue.textContent = `${brushInput.value}px`;
+  });
+
+  eraserBtn.addEventListener("click", () => {
+    erasing = !erasing;
+    eraserBtn.classList.toggle("active", erasing);
+    board.style.cursor = erasing ? "cell" : "crosshair";
+  });
+
+  eraserSizeInput.addEventListener("input", () => {
+    eraserSizeValue.textContent = `${eraserSizeInput.value}px`;
   });
 
   clearButton.addEventListener("click", () => {

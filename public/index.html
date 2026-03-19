@@ -21,6 +21,7 @@
         </div>
         <div class="join-group">
           <button id="new-room-btn" type="button">New Room</button>
+          <button id="copy-link" type="button">Copy Invite Link</button>
         </div>
         <div class="join-info">
           <p id="presence" class="status-pill">Connecting...</p>
@@ -45,8 +46,13 @@
           <input id="brush" type="range" min="1" max="24" value="4" />
           <span id="brush-value">4px</span>
         </label>
+        <button id="eraser" type="button">Eraser</button>
+        <label>
+          Eraser Size
+          <input id="eraser-size" type="range" min="4" max="60" value="20" />
+          <span id="eraser-size-value">20px</span>
+        </label>
         <button id="clear" type="button">Clear canvas</button>
-        <button id="copy-link" type="button">Copy invite link</button>
       </section>
 
       <section class="canvas-stage">
