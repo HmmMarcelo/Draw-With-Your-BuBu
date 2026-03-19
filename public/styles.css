@@ -267,12 +267,12 @@ h1 {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255,255,255,0.6);
   padding: 0;
   cursor: pointer;
-  animation: floatBob 3s ease-in-out infinite;
   transition: background 300ms ease, box-shadow 300ms ease;
 }
 
 #dark-toggle:hover {
   transform: none;
+  animation: floatBob 3s ease-in-out infinite;
   background: rgba(255, 255, 255, 0.5);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255,255,255,0.7);
 }
