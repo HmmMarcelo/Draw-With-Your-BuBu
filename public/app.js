@@ -319,8 +319,8 @@ function floodFill(startX, startY, hexColor) {
 
   if (sr === r && sg === g && sb === b) return;
 
-  const tolerance = 30;
-  const stack = [startX, startY];
+  const tolerance = 80;
+  const visited = new Uint8Array(w * h);
 
   function matches(i) {
     return (
@@ -330,23 +330,63 @@ function floodFill(startX, startY, hexColor) {
     );
   }
 
+  // Scanline flood fill
+  const stack = [[startX, startY]];
+
   while (stack.length) {
-    const y = stack.pop();
-    const x = stack.pop();
-    const i = (y * w + x) * 4;
+    const [sx, sy] = stack.pop();
+    let x = sx;
 
-    if (x < 0 || x >= w || y < 0 || y >= h) continue;
-    if (!matches(i)) continue;
+    // Walk left to find the start of this span
+    while (x > 0 && matches(((sy * w) + x - 1) * 4) && !visited[sy * w + x - 1]) {
+      x--;
+    }
 
-    data[i] = r;
-    data[i + 1] = g;
-    data[i + 2] = b;
-    data[i + 3] = 255;
+    let spanUp = false;
+    let spanDown = false;
 
-    stack.push(x + 1, y);
-    stack.push(x - 1, y);
-    stack.push(x, y + 1);
-    stack.push(x, y - 1);
+    while (x < w) {
+      const pi = sy * w + x;
+      const i = pi * 4;
+
+      if (visited[pi] || !matches(i)) break;
+
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+      visited[pi] = 1;
+
+      // Check row above
+      if (sy > 0) {
+        const upIdx = ((sy - 1) * w + x) * 4;
+        const upPi = (sy - 1) * w + x;
+        if (matches(upIdx) && !visited[upPi]) {
+          if (!spanUp) {
+            stack.push([x, sy - 1]);
+            spanUp = true;
+          }
+        } else {
+          spanUp = false;
+        }
+      }
+
+      // Check row below
+      if (sy < h - 1) {
+        const downIdx = ((sy + 1) * w + x) * 4;
+        const downPi = (sy + 1) * w + x;
+        if (matches(downIdx) && !visited[downPi]) {
+          if (!spanDown) {
+            stack.push([x, sy + 1]);
+            spanDown = true;
+          }
+        } else {
+          spanDown = false;
+        }
+      }
+
+      x++;
+    }
   }
 
   ctx.save();
