@@ -242,6 +242,7 @@ function configureCanvas() {
 
   // Keep strokes crisp on high-DPI displays while drawing in CSS pixels.
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -319,7 +320,7 @@ function floodFill(startX, startY, hexColor) {
 
   if (sr === r && sg === g && sb === b) return;
 
-  const tolSq = 180 * 180; // squared Euclidean distance threshold
+  const tolSq = 180 * 180;
   const visited = new Uint8Array(w * h);
 
   function matches(i) {
@@ -336,7 +337,6 @@ function floodFill(startX, startY, hexColor) {
     const [sx, sy] = stack.pop();
     let x = sx;
 
-    // Walk left to find the start of this span
     while (x > 0 && matches(((sy * w) + x - 1) * 4) && !visited[sy * w + x - 1]) {
       x--;
     }
@@ -356,62 +356,41 @@ function floodFill(startX, startY, hexColor) {
       data[i + 3] = 255;
       visited[pi] = 1;
 
-      // Check row above
       if (sy > 0) {
-        const upIdx = ((sy - 1) * w + x) * 4;
         const upPi = (sy - 1) * w + x;
-        if (matches(upIdx) && !visited[upPi]) {
-          if (!spanUp) {
-            stack.push([x, sy - 1]);
-            spanUp = true;
-          }
-        } else {
-          spanUp = false;
-        }
+        if (matches(upPi * 4) && !visited[upPi]) {
+          if (!spanUp) { stack.push([x, sy - 1]); spanUp = true; }
+        } else { spanUp = false; }
       }
 
-      // Check row below
       if (sy < h - 1) {
-        const downIdx = ((sy + 1) * w + x) * 4;
         const downPi = (sy + 1) * w + x;
-        if (matches(downIdx) && !visited[downPi]) {
-          if (!spanDown) {
-            stack.push([x, sy + 1]);
-            spanDown = true;
-          }
-        } else {
-          spanDown = false;
-        }
+        if (matches(downPi * 4) && !visited[downPi]) {
+          if (!spanDown) { stack.push([x, sy + 1]); spanDown = true; }
+        } else { spanDown = false; }
       }
 
       x++;
     }
   }
 
-  // Boundary cleanup: dilate fill into anti-aliased fringe pixels.
-  // Any non-filled pixel adjacent to a filled pixel gets overwritten
-  // unless it's very close to the stroke color (the hard boundary).
-  for (let pass = 0; pass < 3; pass++) {
-    const edgePixels = [];
+  // Dilate: overwrite any unfilled pixel neighboring a filled pixel.
+  // This covers anti-aliased fringe pixels the tolerance missed.
+  for (let pass = 0; pass < 2; pass++) {
+    const edge = [];
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const pi = y * w + x;
         if (visited[pi]) continue;
-        const i = pi * 4;
-        // Skip pixels that are already the fill color
-        if (data[i] === r && data[i + 1] === g && data[i + 2] === b) continue;
-        // Check if any neighbor is filled
-        let hasFilledNeighbor = false;
-        if (x > 0 && visited[pi - 1]) hasFilledNeighbor = true;
-        else if (x < w - 1 && visited[pi + 1]) hasFilledNeighbor = true;
-        else if (y > 0 && visited[pi - w]) hasFilledNeighbor = true;
-        else if (y < h - 1 && visited[pi + w]) hasFilledNeighbor = true;
-        if (hasFilledNeighbor) {
-          edgePixels.push(pi);
+        if ((x > 0 && visited[pi - 1]) ||
+            (x < w - 1 && visited[pi + 1]) ||
+            (y > 0 && visited[pi - w]) ||
+            (y < h - 1 && visited[pi + w])) {
+          edge.push(pi);
         }
       }
     }
-    for (const pi of edgePixels) {
+    for (const pi of edge) {
       const i = pi * 4;
       data[i] = r;
       data[i + 1] = g;
