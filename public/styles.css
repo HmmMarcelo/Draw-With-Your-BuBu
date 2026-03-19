@@ -215,7 +215,7 @@ h1 {
 .tool-popup {
   display: none;
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--panel);
@@ -227,20 +227,20 @@ h1 {
   align-items: center;
   white-space: nowrap;
   z-index: 10;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.13);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.13);
 }
 
 .tool-popup::before {
   content: "";
   position: absolute;
-  top: -5px;
+  bottom: -5px;
   left: 50%;
   transform: translateX(-50%) rotate(45deg);
   width: 10px;
   height: 10px;
   background: var(--panel);
-  border-left: 1px solid var(--border);
-  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .controls-spacer {
@@ -250,6 +250,29 @@ h1 {
 #download-btn {
   background: #edf6ff;
   border-color: rgba(59, 130, 246, 0.3);
+}
+
+body.dark #download-btn {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+#bucket-btn {
+  background: #fef9c3;
+  border-color: rgba(202, 138, 4, 0.3);
+}
+
+#bucket-btn.active {
+  background: #fde68a;
+  border-color: rgba(202, 138, 4, 0.5);
+  box-shadow: 0 0 0 2px rgba(202, 138, 4, 0.2);
+}
+
+body.dark #bucket-btn {
+  background: rgba(202, 138, 4, 0.15);
+}
+
+body.dark #bucket-btn.active {
+  background: rgba(202, 138, 4, 0.3);
 }
 
 #download-popup {

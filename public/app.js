@@ -21,12 +21,14 @@ const downloadBtn = document.getElementById("download-btn");
 const downloadWrap = downloadBtn.closest(".tool-wrap");
 const dlPng = document.getElementById("dl-png");
 const dlJpg = document.getElementById("dl-jpg");
+const bucketBtn = document.getElementById("bucket-btn");
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
 
 let drawing = false;
 let lastPoint = null;
 let erasing = false;
+let filling = false;
 let roomId = getRoomFromUrl();
 
 ctx.fillStyle = "#ffffff";
@@ -74,7 +76,14 @@ function setupSocket() {
   });
 
   socket.on("draw_segment", (segment) => {
-    drawSegment(segment.from, segment.to, segment.color, segment.size);
+    if (segment.fill) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const px = Math.floor(segment.x * board.clientWidth * dpr);
+      const py = Math.floor(segment.y * board.clientHeight * dpr);
+      floodFill(px, py, segment.color);
+    } else {
+      drawSegment(segment.from, segment.to, segment.color, segment.size);
+    }
   });
 
   socket.on("clear_canvas", clearCanvas);
@@ -82,6 +91,21 @@ function setupSocket() {
 
 function setupUI() {
   board.addEventListener("pointerdown", (event) => {
+    if (filling) {
+      const pt = getRelativePoint(event);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const px = Math.floor(pt.x * dpr);
+      const py = Math.floor(pt.y * dpr);
+      const color = colorInput.value;
+      floodFill(px, py, color);
+      socket.emit("draw_segment", {
+        fill: true,
+        x: pt.x / board.clientWidth,
+        y: pt.y / board.clientHeight,
+        color
+      });
+      return;
+    }
     drawing = true;
     board.setPointerCapture(event.pointerId);
     lastPoint = getRelativePoint(event);
@@ -124,15 +148,18 @@ function setupUI() {
 
   function selectTool(tool) {
     erasing = tool === "eraser";
-    brushBtn.classList.toggle("active", !erasing);
-    eraserBtn.classList.toggle("active", erasing);
-    brushWrap.classList.toggle("open", !erasing);
-    eraserWrap.classList.toggle("open", erasing);
-    board.style.cursor = erasing ? "cell" : "crosshair";
+    filling = tool === "fill";
+    brushBtn.classList.toggle("active", tool === "brush");
+    eraserBtn.classList.toggle("active", tool === "eraser");
+    bucketBtn.classList.toggle("active", tool === "fill");
+    brushWrap.classList.toggle("open", tool === "brush");
+    eraserWrap.classList.toggle("open", tool === "eraser");
+    board.style.cursor = tool === "eraser" ? "cell" : tool === "fill" ? "pointer" : "crosshair";
   }
 
   brushBtn.addEventListener("click", () => selectTool("brush"));
   eraserBtn.addEventListener("click", () => selectTool("eraser"));
+  bucketBtn.addEventListener("click", () => selectTool("fill"));
 
   document.addEventListener("click", (e) => {
     if (!brushWrap.contains(e.target)) brushWrap.classList.remove("open");
@@ -270,6 +297,62 @@ function drawSegment(from, to, color, size) {
   ctx.moveTo(start.x, start.y);
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
+}
+
+function floodFill(startX, startY, hexColor) {
+  const w = board.width;
+  const h = board.height;
+  if (startX < 0 || startX >= w || startY < 0 || startY >= h) return;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  ctx.restore();
+
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+
+  const idx = (startY * w + startX) * 4;
+  const sr = data[idx], sg = data[idx + 1], sb = data[idx + 2];
+
+  if (sr === r && sg === g && sb === b) return;
+
+  const tolerance = 30;
+  const stack = [startX, startY];
+
+  function matches(i) {
+    return (
+      Math.abs(data[i] - sr) <= tolerance &&
+      Math.abs(data[i + 1] - sg) <= tolerance &&
+      Math.abs(data[i + 2] - sb) <= tolerance
+    );
+  }
+
+  while (stack.length) {
+    const y = stack.pop();
+    const x = stack.pop();
+    const i = (y * w + x) * 4;
+
+    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+    if (!matches(i)) continue;
+
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+    data[i + 3] = 255;
+
+    stack.push(x + 1, y);
+    stack.push(x - 1, y);
+    stack.push(x, y + 1);
+    stack.push(x, y - 1);
+  }
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.putImageData(imageData, 0, 0);
+  ctx.restore();
 }
 
 function normalizePoint(point) {
