@@ -12,9 +12,13 @@ const roomText = document.getElementById("room-code");
 const roomInput = document.getElementById("room-input");
 const joinBtn = document.getElementById("join-btn");
 const newRoomBtn = document.getElementById("new-room-btn");
-const eraserBtn = document.getElementById("eraser");
+const brushBtn = document.getElementById("brush-btn");
+const eraserBtn = document.getElementById("eraser-btn");
 const eraserSizeInput = document.getElementById("eraser-size");
 const eraserSizeValue = document.getElementById("eraser-size-value");
+const darkToggle = document.getElementById("dark-toggle");
+const brushWrap = brushBtn.closest(".tool-wrap");
+const eraserWrap = eraserBtn.closest(".tool-wrap");
 
 let drawing = false;
 let lastPoint = null;
@@ -110,15 +114,38 @@ function setupUI() {
     brushValue.textContent = `${brushInput.value}px`;
   });
 
-  eraserBtn.addEventListener("click", () => {
-    erasing = !erasing;
-    eraserBtn.classList.toggle("active", erasing);
-    board.style.cursor = erasing ? "cell" : "crosshair";
-  });
-
   eraserSizeInput.addEventListener("input", () => {
     eraserSizeValue.textContent = `${eraserSizeInput.value}px`;
   });
+
+  function selectTool(tool) {
+    erasing = tool === "eraser";
+    brushBtn.classList.toggle("active", !erasing);
+    eraserBtn.classList.toggle("active", erasing);
+    brushWrap.classList.toggle("open", !erasing);
+    eraserWrap.classList.toggle("open", erasing);
+    board.style.cursor = erasing ? "cell" : "crosshair";
+  }
+
+  brushBtn.addEventListener("click", () => selectTool("brush"));
+  eraserBtn.addEventListener("click", () => selectTool("eraser"));
+
+  document.addEventListener("click", (e) => {
+    if (!brushWrap.contains(e.target)) brushWrap.classList.remove("open");
+    if (!eraserWrap.contains(e.target)) eraserWrap.classList.remove("open");
+  });
+
+  darkToggle.addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+    const isDark = document.body.classList.contains("dark");
+    darkToggle.textContent = isDark ? "☀️" : "🌙";
+    localStorage.setItem("darkMode", isDark ? "1" : "0");
+  });
+
+  if (localStorage.getItem("darkMode") === "1") {
+    document.body.classList.add("dark");
+    darkToggle.textContent = "☀️";
+  }
 
   clearButton.addEventListener("click", () => {
     clearCanvas();

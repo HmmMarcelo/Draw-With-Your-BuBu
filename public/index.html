@@ -34,6 +34,7 @@
           <h1>Draw Together</h1>
           <p class="subtitle">Share a room code, draw with your bubu.</p>
         </div>
+        <button id="dark-toggle" type="button" title="Toggle dark mode">🌙</button>
       </header>
 
       <section class="controls">
@@ -41,17 +42,20 @@
           Color
           <input id="color" type="color" value="#13293d" />
         </label>
-        <label>
-          Brush
-          <input id="brush" type="range" min="1" max="24" value="4" />
-          <span id="brush-value">4px</span>
-        </label>
-        <button id="eraser" type="button">Eraser</button>
-        <label>
-          Eraser Size
-          <input id="eraser-size" type="range" min="4" max="60" value="20" />
-          <span id="eraser-size-value">20px</span>
-        </label>
+        <div class="tool-wrap">
+          <button id="brush-btn" type="button" class="tool-btn active">Brush</button>
+          <div class="tool-popup" id="brush-popup">
+            <input id="brush" type="range" min="1" max="24" value="4" />
+            <span id="brush-value">4px</span>
+          </div>
+        </div>
+        <div class="tool-wrap">
+          <button id="eraser-btn" type="button" class="tool-btn">Eraser</button>
+          <div class="tool-popup" id="eraser-popup">
+            <input id="eraser-size" type="range" min="4" max="60" value="20" />
+            <span id="eraser-size-value">20px</span>
+          </div>
+        </div>
         <button id="clear" type="button">Clear canvas</button>
       </section>
 

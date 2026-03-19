@@ -6,6 +6,38 @@
   --panel: rgba(255, 255, 255, 0.78);
   --border: rgba(16, 42, 67, 0.15);
   --accent: #ef8354;
+  --canvas-bg: #fff;
+}
+
+body.dark {
+  --bg-1: #1a1a2e;
+  --bg-2: #16213e;
+  --ink: #e0e0e0;
+  --muted: #9ca3af;
+  --panel: rgba(30, 30, 50, 0.82);
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: #f59e0b;
+  --canvas-bg: #2a2a3a;
+}
+
+body.dark {
+  background: radial-gradient(circle at 20% 20%, #16213e, transparent 38%),
+    radial-gradient(circle at 80% 10%, #2d1b4e, transparent 35%),
+    linear-gradient(135deg, #1a1a2e, #0f0f1a 60%);
+}
+
+body.dark button {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+body.dark .join-bar input[type="text"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+}
+
+body.dark #board {
+  background: var(--canvas-bg);
 }
 
 * {
@@ -131,6 +163,70 @@ h1 {
   font-weight: 500;
 }
 
+.tool-wrap {
+  position: relative;
+}
+
+.tool-btn {
+  background: #f0f0f0;
+  border-color: var(--border);
+}
+
+.tool-btn.active {
+  background: #dbeafe;
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+#eraser-btn.active {
+  background: #ffd6d6;
+  border-color: rgba(220, 38, 38, 0.4);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
+.tool-popup {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  gap: 0.45rem;
+  align-items: center;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.13);
+}
+
+.tool-popup::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.tool-wrap.open .tool-popup {
+  display: flex;
+}
+
+#dark-toggle {
+  font-size: 1.35rem;
+  background: transparent;
+  border: none;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+}
+
 button {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -148,17 +244,6 @@ button:hover {
 
 button:active {
   transform: translateY(0);
-}
-
-#eraser {
-  background: #f0f0f0;
-  border-color: var(--border);
-}
-
-#eraser.active {
-  background: #ffd6d6;
-  border-color: rgba(220, 38, 38, 0.4);
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
 #clear {
