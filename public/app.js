@@ -309,7 +309,6 @@ function floodFill(startX, startY, hexColor) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const imageData = ctx.getImageData(0, 0, w, h);
   const data = imageData.data;
-  const origData = new Uint8ClampedArray(data);
   ctx.restore();
 
   const r = parseInt(hexColor.slice(1, 3), 16);
@@ -317,97 +316,47 @@ function floodFill(startX, startY, hexColor) {
   const b = parseInt(hexColor.slice(5, 7), 16);
 
   const idx = (startY * w + startX) * 4;
-  const sr = data[idx], sg = data[idx + 1], sb = data[idx + 2];
+  const sr = data[idx], sg = data[idx + 1], sb = data[idx + 2], sa = data[idx + 3];
 
   if (sr === r && sg === g && sb === b) return;
 
-  const tolSq = 180 * 180;
-  const visited = new Uint8Array(w * h);
-
   function matches(i) {
-    const dr = data[i] - sr;
-    const dg = data[i + 1] - sg;
-    const db = data[i + 2] - sb;
-    return (dr * dr + dg * dg + db * db) <= tolSq;
+    return data[i] === sr && data[i + 1] === sg && data[i + 2] === sb && data[i + 3] === sa;
   }
 
-  // Scanline flood fill
   const stack = [[startX, startY]];
 
   while (stack.length) {
     const [sx, sy] = stack.pop();
     let x = sx;
 
-    while (x > 0 && matches(((sy * w) + x - 1) * 4) && !visited[sy * w + x - 1]) {
-      x--;
-    }
+    while (x > 0 && matches(((sy * w) + x - 1) * 4)) x--;
 
     let spanUp = false;
     let spanDown = false;
 
     while (x < w) {
-      const pi = sy * w + x;
-      const i = pi * 4;
-
-      if (visited[pi] || !matches(i)) break;
+      const i = (sy * w + x) * 4;
+      if (!matches(i)) break;
 
       data[i] = r;
       data[i + 1] = g;
       data[i + 2] = b;
       data[i + 3] = 255;
-      visited[pi] = 1;
 
       if (sy > 0) {
-        const upPi = (sy - 1) * w + x;
-        if (matches(upPi * 4) && !visited[upPi]) {
+        if (matches(((sy - 1) * w + x) * 4)) {
           if (!spanUp) { stack.push([x, sy - 1]); spanUp = true; }
         } else { spanUp = false; }
       }
 
       if (sy < h - 1) {
-        const downPi = (sy + 1) * w + x;
-        if (matches(downPi * 4) && !visited[downPi]) {
+        if (matches(((sy + 1) * w + x) * 4)) {
           if (!spanDown) { stack.push([x, sy + 1]); spanDown = true; }
         } else { spanDown = false; }
       }
 
       x++;
-    }
-  }
-
-  // Dilate: overwrite unfilled fringe pixels neighboring a filled pixel,
-  // but ONLY if they are blends of the original source color (anti-alias
-  // transitional pixels). Never eat into a different solid color.
-  const srcTolSq = 320 * 320; // generous: catches blends between source & stroke
-  function nearSource(i) {
-    const dr = origData[i] - sr;
-    const dg = origData[i + 1] - sg;
-    const db = origData[i + 2] - sb;
-    return (dr * dr + dg * dg + db * db) <= srcTolSq;
-  }
-
-  for (let pass = 0; pass < 2; pass++) {
-    const edge = [];
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const pi = y * w + x;
-        if (visited[pi]) continue;
-        if (!nearSource(pi * 4)) continue;
-        if ((x > 0 && visited[pi - 1]) ||
-            (x < w - 1 && visited[pi + 1]) ||
-            (y > 0 && visited[pi - w]) ||
-            (y < h - 1 && visited[pi + w])) {
-          edge.push(pi);
-        }
-      }
-    }
-    for (const pi of edge) {
-      const i = pi * 4;
-      data[i] = r;
-      data[i + 1] = g;
-      data[i + 2] = b;
-      data[i + 3] = 255;
-      visited[pi] = 1;
     }
   }
 
