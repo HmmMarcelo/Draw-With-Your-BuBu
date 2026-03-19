@@ -264,14 +264,28 @@ h1 {
   transform: scale(1.1);
 }
 
-.hidden-color-input {
-  position: absolute;
-  width: 0;
-  height: 0;
+#color-popup {
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+  padding: 0.6rem;
+}
+
+#color-popup input[type="color"] {
+  width: 200px;
+  height: 200px;
   padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+}
+
+#color-ok {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  width: 100%;
 }
 
 #download-btn {

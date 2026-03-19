@@ -23,6 +23,8 @@ const dlPng = document.getElementById("dl-png");
 const dlJpg = document.getElementById("dl-jpg");
 const bucketBtn = document.getElementById("bucket-btn");
 const colorBtn = document.getElementById("color-btn");
+const colorPopupWrap = colorBtn.closest(".tool-wrap");
+const colorOk = document.getElementById("color-ok");
 
 const brushWrap = brushBtn.closest(".tool-wrap");
 const eraserWrap = eraserBtn.closest(".tool-wrap");
@@ -189,14 +191,19 @@ function setupUI() {
     if (!brushWrap.contains(e.target)) brushWrap.classList.remove("open");
     if (!eraserWrap.contains(e.target)) eraserWrap.classList.remove("open");
     if (!downloadWrap.contains(e.target)) downloadWrap.classList.remove("open");
+    if (!colorPopupWrap.contains(e.target)) colorPopupWrap.classList.remove("open");
   });
 
   colorBtn.addEventListener("click", () => {
-    colorInput.click();
+    colorPopupWrap.classList.toggle("open");
   });
 
   colorInput.addEventListener("input", () => {
     colorBtn.style.background = colorInput.value;
+  });
+
+  colorOk.addEventListener("click", () => {
+    colorPopupWrap.classList.remove("open");
   });
 
   downloadBtn.addEventListener("click", () => {
