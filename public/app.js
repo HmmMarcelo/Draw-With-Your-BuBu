@@ -319,15 +319,14 @@ function floodFill(startX, startY, hexColor) {
 
   if (sr === r && sg === g && sb === b) return;
 
-  const tolerance = 80;
+  const tolSq = 180 * 180; // squared Euclidean distance threshold
   const visited = new Uint8Array(w * h);
 
   function matches(i) {
-    return (
-      Math.abs(data[i] - sr) <= tolerance &&
-      Math.abs(data[i + 1] - sg) <= tolerance &&
-      Math.abs(data[i + 2] - sb) <= tolerance
-    );
+    const dr = data[i] - sr;
+    const dg = data[i + 1] - sg;
+    const db = data[i + 2] - sb;
+    return (dr * dr + dg * dg + db * db) <= tolSq;
   }
 
   // Scanline flood fill
