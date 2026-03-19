@@ -309,6 +309,7 @@ function floodFill(startX, startY, hexColor) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const imageData = ctx.getImageData(0, 0, w, h);
   const data = imageData.data;
+  const origData = new Uint8ClampedArray(data);
   ctx.restore();
 
   const r = parseInt(hexColor.slice(1, 3), 16);
@@ -374,14 +375,24 @@ function floodFill(startX, startY, hexColor) {
     }
   }
 
-  // Dilate: overwrite any unfilled pixel neighboring a filled pixel.
-  // This covers anti-aliased fringe pixels the tolerance missed.
+  // Dilate: overwrite unfilled fringe pixels neighboring a filled pixel,
+  // but ONLY if they are blends of the original source color (anti-alias
+  // transitional pixels). Never eat into a different solid color.
+  const srcTolSq = 320 * 320; // generous: catches blends between source & stroke
+  function nearSource(i) {
+    const dr = origData[i] - sr;
+    const dg = origData[i + 1] - sg;
+    const db = origData[i + 2] - sb;
+    return (dr * dr + dg * dg + db * db) <= srcTolSq;
+  }
+
   for (let pass = 0; pass < 2; pass++) {
     const edge = [];
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const pi = y * w + x;
         if (visited[pi]) continue;
+        if (!nearSource(pi * 4)) continue;
         if ((x > 0 && visited[pi - 1]) ||
             (x < w - 1 && visited[pi + 1]) ||
             (y > 0 && visited[pi - w]) ||
