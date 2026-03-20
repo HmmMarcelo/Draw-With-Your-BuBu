@@ -34,7 +34,13 @@
           <h1>Draw Together</h1>
           <p class="subtitle">Share a room code, draw with your bubu.</p>
         </div>
-        <button id="dark-toggle" type="button" title="Toggle dark mode">🌙</button>
+        <div class="tool-wrap" id="modes-wrap">
+          <button id="modes-btn" type="button" title="Switch Mode">Modes: <span id="mode-label">Normal</span></button>
+          <div class="tool-popup modes-dropdown" id="modes-popup">
+            <button id="mode-normal-btn" type="button" class="mode-option active">Normal</button>
+            <button id="mode-endless-btn" type="button" class="mode-option">Endless</button>
+          </div>
+        </div>
       </header>
 
       <section class="controls">
@@ -47,9 +53,19 @@
         <div class="tool-wrap">
           <button id="brush-btn" type="button" class="tool-btn active" title="Brush"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
           <div class="tool-popup" id="brush-popup">
+            <select id="brush-style" title="Brush Style">
+              <option value="round">Round</option>
+              <option value="flat">Flat</option>
+              <option value="marker">Marker</option>
+              <option value="dry">Dry Brush</option>
+              <option value="fan">Fan</option>
+            </select>
             <input id="brush" type="range" min="1" max="24" value="4" />
             <span id="brush-value">4px</span>
           </div>
+        </div>
+        <div class="tool-wrap">
+          <button id="color-pick-btn" type="button" class="tool-btn" title="Pick Color"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 8-8a1.5 1.5 0 0 1 2 0l2 2a1.5 1.5 0 0 1 0 2l-8 8"/><path d="M7 13 3 17a2.1 2.1 0 0 0 3 3l4-4"/><path d="m12 8 4 4"/></svg></button>
         </div>
         <div class="tool-wrap">
           <button id="eraser-btn" type="button" class="tool-btn" title="Eraser"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
@@ -78,12 +94,24 @@
             <button id="dl-jpg" type="button">JPG (with background)</button>
           </div>
         </div>
+        <button id="fullscreen-btn" type="button" title="Toggle fullscreen canvas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+        <button id="toggle-3d-btn" type="button" class="tool-btn" title="Toggle 3D layer view">3D</button>
         <button id="clear" type="button" title="Clear Canvas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+        <button id="dark-toggle" type="button" title="Toggle dark mode">🌙</button>
       </section>
 
       <section class="canvas-stage">
         <canvas id="board"></canvas>
         <div id="eraser-cursor"></div>
+        <div id="view-25d" class="view-25d">
+          <div id="scene-25d" class="scene-25d"></div>
+        </div>
+        <div id="zoom-indicator" class="zoom-indicator">
+          <button id="zoom-out-btn" type="button" title="Zoom out">−</button>
+          <span id="zoom-level">100%</span>
+          <button id="zoom-in-btn" type="button" title="Zoom in">+</button>
+          <button id="zoom-reset-btn" type="button" title="Reset view">⌂</button>
+        </div>
       </section>
     </main>
 
