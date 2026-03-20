@@ -134,6 +134,32 @@ function setupSocket() {
   });
 
   socket.on("clear_canvas", clearCanvas);
+
+  // Late-join: replay drawing history from server
+  socket.on("draw_history", (history) => {
+    for (const segment of history) {
+      const li = segment.layer !== undefined && segment.layer < layers.length ? segment.layer : 0;
+      if (segment.endless) {
+        endlessStrokes.push({
+          from: segment.from,
+          to: segment.to,
+          color: segment.color,
+          size: segment.size,
+          brushStyle: segment.brushStyle || "round",
+          erase: segment.erase || false
+        });
+      } else if (segment.fill) {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const px = Math.floor(segment.x * board.clientWidth * dpr);
+        const py = Math.floor(segment.y * board.clientHeight * dpr);
+        floodFill(px, py, segment.color, li);
+      } else {
+        drawSegment(segment.from, segment.to, segment.color, segment.size, li, segment.erase, segment.brushStyle);
+      }
+    }
+    // Render endless strokes if in endless mode
+    if (currentMode === "endless" && endlessStrokes.length > 0) renderEndless();
+  });
 }
 
 function setupUI() {
@@ -990,6 +1016,9 @@ function handleEndlessPointerDown(event) {
     endlessPanViewportStart = { x: endlessViewport.x, y: endlessViewport.y };
     return;
   }
+
+  // Right-click → ignore for drawing (used by 3D orbit / context menu)
+  if (event.button !== 0) return;
 
   if (pickingColor) {
     pickColorAtPoint({ x: cx, y: cy });
