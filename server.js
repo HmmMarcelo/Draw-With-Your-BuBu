@@ -63,9 +63,15 @@ io.on("connection", (socket) => {
   socket.on("clear_canvas", () => {
     const roomId = socket.data.roomId;
     if (!roomId) return;
-    // Clear history for this room
-    roomHistory.delete(roomId);
-    socket.to(roomId).emit("clear_canvas");
+    // Only clear history for this mode
+    if (data && data.mode === "endless") {
+      // No-op for now, as endless mode is client-only
+      socket.to(roomId).emit("clear_canvas", { mode: "endless" });
+    } else {
+      // Normal mode: clear history
+      roomHistory.delete(roomId);
+      socket.to(roomId).emit("clear_canvas", { mode: "normal" });
+    }
   });
 
   socket.on("disconnect", () => {

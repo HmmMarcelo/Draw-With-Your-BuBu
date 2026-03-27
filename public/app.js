@@ -38,6 +38,78 @@ const eraserWrap = eraserBtn.closest(".tool-wrap");
 const eraserCursor = document.getElementById("eraser-cursor");
 
 let drawing = false;
+// Undo/Redo stacks per user (for normal mode only)
+// Command Pattern Undo/Redo
+class Command {
+  execute() {}
+  undo() {}
+}
+
+class DrawCommand extends Command {
+  constructor(layer, from, to, color, size, erase, brushStyle) {
+    super();
+    this.layer = layer;
+    this.from = { ...from };
+    this.to = { ...to };
+    this.color = color;
+    this.size = size;
+    this.erase = erase;
+    this.brushStyle = brushStyle;
+    this.prevImage = null;
+  }
+  execute() {
+    const l = layers[this.layer];
+    // Calculate bounding box for the stroke, always at least 1x1
+    const minX = Math.floor(Math.min(this.from.x, this.to.x) - this.size - 2);
+    const minY = Math.floor(Math.min(this.from.y, this.to.y) - this.size - 2);
+    const maxX = Math.ceil(Math.max(this.from.x, this.to.x) + this.size + 2);
+    const maxY = Math.ceil(Math.max(this.from.y, this.to.y) + this.size + 2);
+    const x = Math.max(0, minX);
+    const y = Math.max(0, minY);
+    const w = Math.max(1, Math.min(l.canvas.width, maxX) - x);
+    const h = Math.max(1, Math.min(l.canvas.height, maxY) - y);
+    this._undoBox = { x, y, w, h };
+    try {
+      this.prevImage = l.ctx.getImageData(x, y, w, h, { willReadFrequently: true });
+    } catch (e) {
+      this.prevImage = null; // If region is invalid, skip undo for this segment
+    }
+    drawSegment(this.from, this.to, this.color, this.size, this.layer, this.erase, this.brushStyle);
+  }
+  undo() {
+    const l = layers[this.layer];
+    if (this.prevImage && this._undoBox) {
+      l.ctx.putImageData(this.prevImage, this._undoBox.x, this._undoBox.y);
+    }
+    compositeLayers();
+  }
+}
+
+class FillCommand extends Command {
+  constructor(layer, x, y, color) {
+    super();
+    this.layer = layer;
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.prevImage = null;
+  }
+  execute() {
+    const l = layers[this.layer];
+    // For fill, fallback to full canvas (could optimize with flood bounds, but keep safe)
+    this.prevImage = l.ctx.getImageData(0, 0, l.canvas.width, l.canvas.height, { willReadFrequently: true });
+    floodFill(this.x, this.y, this.color, this.layer);
+  }
+  undo() {
+    const l = layers[this.layer];
+    if (this.prevImage) l.ctx.putImageData(this.prevImage, 0, 0);
+    compositeLayers();
+  }
+}
+
+let undoStack = [];
+let redoStack = [];
+let currentCommandGroup = null;
 let lastPoint = null;
 let activePointerId = null;
 let erasing = false;
@@ -50,15 +122,9 @@ let selectTool;
 let layers = [];
 let activeLayerIndex = 0;
 
-// Endless mode state
-let currentMode = "normal";
-let endlessViewport = { x: 0, y: 0, scale: 1 };
 let endlessStrokes = [];
-const endlessPointers = new Map();
-let endlessPinchState = null;
-let endlessPanning = false;
-let endlessPanStart = null;
-let endlessPanViewportStart = null;
+
+let currentMode = "normal";
 
 // 3D view toggle state
 let show3d = false;
@@ -112,15 +178,17 @@ function setupSocket() {
   socket.on("draw_segment", (segment) => {
     const li = segment.layer !== undefined && segment.layer < layers.length ? segment.layer : 0;
     if (segment.endless) {
-      endlessStrokes.push({
-        from: segment.from,
-        to: segment.to,
-        color: segment.color,
-        size: segment.size,
-        brushStyle: segment.brushStyle || "round",
-        erase: segment.erase || false
-      });
-      if (currentMode === "endless") renderEndless();
+      if (currentMode === "endless") {
+        endlessStrokes.push({
+          from: segment.from,
+          to: segment.to,
+          color: segment.color,
+          size: segment.size,
+          brushStyle: segment.brushStyle || "round",
+          erase: segment.erase || false
+        });
+        renderEndless();
+      }
       return;
     }
     if (segment.fill) {
@@ -133,7 +201,11 @@ function setupSocket() {
     }
   });
 
-  socket.on("clear_canvas", clearCanvas);
+  socket.on("clear_canvas", (data) => {
+    if (!data || !data.mode || data.mode === currentMode) {
+      clearCanvas();
+    }
+  });
 
   // Late-join: replay drawing history from server
   socket.on("draw_history", (history) => {
@@ -163,6 +235,11 @@ function setupSocket() {
 }
 
 function setupUI() {
+    // Undo/Redo button handlers
+    const undoBtn = document.getElementById("undo-btn");
+    const redoBtn = document.getElementById("redo-btn");
+    if (undoBtn) undoBtn.addEventListener("click", handleUndo);
+    if (redoBtn) redoBtn.addEventListener("click", handleRedo);
   board.addEventListener("pointerdown", (event) => {
     if (currentMode === "endless") { handleEndlessPointerDown(event); return; }
     if (event.button !== 0) return;
@@ -186,16 +263,20 @@ function setupUI() {
       const px = Math.floor(pt.x * dpr);
       const py = Math.floor(pt.y * dpr);
       const color = colorInput.value;
-      floodFill(px, py, color, activeLayerIndex);
+      const cmd = new FillCommand(activeLayerIndex, px, py, color);
+      cmd.execute();
+      pushCommand(cmd);
       socket.emit("draw_segment", {
         fill: true,
         x: pt.x / board.clientWidth,
         y: pt.y / board.clientHeight,
         color,
-        layer: activeLayerIndex
+        layer: activeLayerIndex,
+        endless: currentMode === "endless"
       });
       if (captured) board.releasePointerCapture(event.pointerId);
       activePointerId = null;
+      if (currentMode === "endless") endlessStrokes.push({ type: "fill", x: pt.x / board.clientWidth, y: pt.y / board.clientHeight, color, layer: activeLayerIndex });
       return;
     }
 
@@ -210,6 +291,8 @@ function setupUI() {
 
     drawing = true;
     lastPoint = getRelativePoint(event);
+    // Start a new command group for undo
+    currentCommandGroup = [];
   });
 
   board.addEventListener("pointermove", (event) => {
@@ -223,7 +306,9 @@ function setupUI() {
     const size = erasing ? Number(eraserSizeInput.value) : Number(brushInput.value);
     const brushStyle = brushStyleInput.value;
 
-    drawSegment(lastPoint, nextPoint, color, size, activeLayerIndex, erasing, brushStyle);
+    const cmd = new DrawCommand(activeLayerIndex, lastPoint, nextPoint, color, size, erasing, brushStyle);
+    cmd.execute();
+    if (currentCommandGroup) currentCommandGroup.push(cmd);
     socket.emit("draw_segment", {
       from: normalizePoint(lastPoint),
       to: normalizePoint(nextPoint),
@@ -233,7 +318,6 @@ function setupUI() {
       erase: erasing,
       brushStyle
     });
-
     lastPoint = nextPoint;
   });
 
@@ -244,6 +328,11 @@ function setupUI() {
     drawing = false;
     lastPoint = null;
     activePointerId = null;
+    // On pointer up, push the command group to undo stack
+    if (currentCommandGroup && currentCommandGroup.length > 0) {
+      pushCommand(currentCommandGroup);
+    }
+    currentCommandGroup = null;
   };
 
   board.addEventListener("pointerup", (event) => {
@@ -350,15 +439,19 @@ function setupUI() {
     localStorage.setItem("darkMode", isDark ? "1" : "0");
   });
 
-  if (localStorage.getItem("darkMode") === "1") {
+  // Always start in dark mode unless user explicitly chose light mode
+  if (localStorage.getItem("darkMode") === null || localStorage.getItem("darkMode") === "1") {
     document.body.classList.add("dark");
     darkToggle.textContent = "☀️";
+  } else {
+    document.body.classList.remove("dark");
+    darkToggle.textContent = "🌙";
   }
 
   clearButton.addEventListener("click", () => {
     if (!confirm("Are you sure you want to clear the canvas?")) return;
     clearCanvas();
-    socket.emit("clear_canvas");
+    socket.emit("clear_canvas", { mode: currentMode });
   });
 
   copyButton.addEventListener("click", async () => {
@@ -402,7 +495,7 @@ function setupUI() {
   const modeEndlessBtn = document.getElementById("mode-endless-btn");
   if (modesBtn) modesBtn.addEventListener("click", () => modesWrap.classList.toggle("open"));
   if (modeNormalBtn) modeNormalBtn.addEventListener("click", () => setMode("normal"));
-  if (modeEndlessBtn) modeEndlessBtn.addEventListener("click", () => setMode("endless"));
+  // Endless mode button remains, but does nothing
 
   // 3D toggle button
   const toggle3dBtn = document.getElementById("toggle-3d-btn");
@@ -422,6 +515,7 @@ function setupUI() {
   if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { if (currentMode === "endless") resetEndlessView(); });
 
   window.addEventListener("resize", configureCanvas);
+  window.addEventListener("orientationchange", configureCanvas);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && fullscreenMode) {
       setFullscreenMode(false);
@@ -448,14 +542,11 @@ function setFullscreenMode(enabled) {
 }
 
 function configureCanvas() {
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const cssWidth = board.clientWidth;
-  const cssHeight = board.clientHeight;
-
-  if (!cssWidth || !cssHeight) return;
-
-  const w = Math.floor(cssWidth * dpr);
-  const h = Math.floor(cssHeight * dpr);
+  // Always use fixed internal resolution
+  const FIXED_CANVAS_SIZE = 2000;
+  board.width = FIXED_CANVAS_SIZE;
+  board.height = FIXED_CANVAS_SIZE;
+  boardCtx.imageSmoothingEnabled = false;
 
   // Save layer contents
   const temps = layers.map(l => {
@@ -466,18 +557,17 @@ function configureCanvas() {
     return t;
   });
 
-  board.width = w;
-  board.height = h;
-  boardCtx.imageSmoothingEnabled = false;
-
   layers.forEach((l, i) => {
     const oldW = l.canvas.width;
     const oldH = l.canvas.height;
-    l.canvas.width = w;
-    l.canvas.height = h;
+    l.canvas.width = FIXED_CANVAS_SIZE;
+    l.canvas.height = FIXED_CANVAS_SIZE;
     l.ctx.imageSmoothingEnabled = false;
     if (oldW && oldH) {
-      l.ctx.drawImage(temps[i], 0, 0, w, h);
+      l.ctx.save();
+      l.ctx.setTransform(FIXED_CANVAS_SIZE / oldW, 0, 0, FIXED_CANVAS_SIZE / oldH, 0, 0);
+      l.ctx.drawImage(temps[i], 0, 0);
+      l.ctx.restore();
     }
   });
 
@@ -489,15 +579,49 @@ function configureCanvas() {
 }
 
 function clearCanvas() {
-  endlessStrokes.length = 0;
-  layers.forEach(l => {
-    l.ctx.clearRect(0, 0, l.canvas.width, l.canvas.height);
-  });
   if (currentMode === "endless") {
+    endlessStrokes.length = 0;
     renderEndless();
   } else {
+    layers.forEach(l => {
+      l.ctx.clearRect(0, 0, l.canvas.width, l.canvas.height);
+    });
+    undoStack = [];
+    redoStack = [];
     compositeLayers();
   }
+
+}
+
+// Undo/Redo logic (normal mode only)
+function handleUndo() {
+  if (undoStack.length === 0) return;
+  const last = undoStack.pop();
+  if (Array.isArray(last)) {
+    for (let i = last.length - 1; i >= 0; i--) last[i].undo();
+  } else {
+    last.undo();
+  }
+  redoStack.push(last);
+  if (redoStack.length > 10) redoStack.shift();
+}
+
+function handleRedo() {
+  if (redoStack.length === 0) return;
+  const next = redoStack.pop();
+  if (Array.isArray(next)) {
+    for (let i = 0; i < next.length; i++) next[i].execute();
+  } else {
+    next.execute();
+  }
+  undoStack.push(next);
+  if (undoStack.length > 10) undoStack.shift();
+}
+
+function pushCommand(cmd) {
+  undoStack.push(cmd);
+  if (undoStack.length > 10) undoStack.shift();
+  redoStack = [];
 }
 
 function downloadImage(format) {
@@ -551,7 +675,7 @@ function drawSegment(from, to, color, size, layerIdx, isErase, brushStyle = "rou
   const w = board.width;
   const h = board.height;
 
-  const imageData = lCtx.getImageData(0, 0, w, h);
+  const imageData = lCtx.getImageData(0, 0, w, h, { willReadFrequently: true });
   const data = imageData.data;
 
   function stableNoise(x, y, seed) {
@@ -713,11 +837,25 @@ function floodFill(startX, startY, hexColor, layerIdx) {
   const layer = layers[li];
   if (!layer) return;
   const lCtx = layer.ctx;
-  const w = board.width;
-  const h = board.height;
+  let w = board.width;
+  let h = board.height;
+  // In endless mode, restrict fill to visible world viewport
+  let worldViewport = null;
+  if (currentMode === "endless") {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const s = endlessViewport.scale * dpr;
+    // Canvas pixel (0,0) maps to world (endlessViewport.x, endlessViewport.y)
+    // Canvas pixel (w-1,h-1) maps to world (endlessViewport.x + (w-1)/s, endlessViewport.y + (h-1)/s)
+    worldViewport = {
+      left: endlessViewport.x,
+      top: endlessViewport.y,
+      right: endlessViewport.x + w / s,
+      bottom: endlessViewport.y + h / s
+    };
+  }
   if (startX < 0 || startX >= w || startY < 0 || startY >= h) return;
 
-  const imageData = lCtx.getImageData(0, 0, w, h);
+  const imageData = lCtx.getImageData(0, 0, w, h, { willReadFrequently: true });
   const data = imageData.data;
 
   const r = parseInt(hexColor.slice(1, 3), 16);
@@ -729,7 +867,16 @@ function floodFill(startX, startY, hexColor, layerIdx) {
 
   if (sr === r && sg === g && sb === b && sa === 255) return;
 
-  function matches(i) {
+  function matches(i, x, y) {
+    // If in endless mode, restrict to visible world viewport
+    if (worldViewport) {
+      // Convert pixel (x, y) to world coordinates
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const s = endlessViewport.scale * dpr;
+      const wx = endlessViewport.x + x / s;
+      const wy = endlessViewport.y + y / s;
+      if (wx < worldViewport.left || wx > worldViewport.right || wy < worldViewport.top || wy > worldViewport.bottom) return false;
+    }
     return data[i] === sr && data[i + 1] === sg && data[i + 2] === sb && data[i + 3] === sa;
   }
 
@@ -739,14 +886,15 @@ function floodFill(startX, startY, hexColor, layerIdx) {
     const [sx, sy] = stack.pop();
     let x = sx;
 
-    while (x > 0 && matches(((sy * w) + x - 1) * 4)) x--;
+    // Move left within world viewport
+    while (x > 0 && matches(((sy * w) + x - 1) * 4, x - 1, sy)) x--;
 
     let spanUp = false;
     let spanDown = false;
 
     while (x < w) {
       const i = (sy * w + x) * 4;
-      if (!matches(i)) break;
+      if (!matches(i, x, sy)) break;
 
       data[i] = r;
       data[i + 1] = g;
@@ -754,13 +902,13 @@ function floodFill(startX, startY, hexColor, layerIdx) {
       data[i + 3] = 255;
 
       if (sy > 0) {
-        if (matches(((sy - 1) * w + x) * 4)) {
+        if (matches(((sy - 1) * w + x) * 4, x, sy - 1)) {
           if (!spanUp) { stack.push([x, sy - 1]); spanUp = true; }
         } else { spanUp = false; }
       }
 
       if (sy < h - 1) {
-        if (matches(((sy + 1) * w + x) * 4)) {
+        if (matches(((sy + 1) * w + x) * 4, x, sy + 1)) {
           if (!spanDown) { stack.push([x, sy + 1]); spanDown = true; }
         } else { spanDown = false; }
       }
@@ -774,28 +922,40 @@ function floodFill(startX, startY, hexColor, layerIdx) {
 }
 
 function normalizePoint(point) {
+  // Map fixed canvas coordinates to [0,1] for network sync
+  const FIXED_CANVAS_SIZE = 2000;
   return {
-    x: point.x / board.clientWidth,
-    y: point.y / board.clientHeight
+    x: point.x / FIXED_CANVAS_SIZE,
+    y: point.y / FIXED_CANVAS_SIZE
   };
 }
 
 function denormalizePoint(point) {
+  const FIXED_CANVAS_SIZE = 2000;
   if (point.x <= 1 && point.y <= 1) {
     return {
-      x: point.x * board.clientWidth,
-      y: point.y * board.clientHeight
+      x: point.x * FIXED_CANVAS_SIZE,
+      y: point.y * FIXED_CANVAS_SIZE
     };
   }
-
   return point;
 }
 
 function getRelativePoint(event) {
   const rect = board.getBoundingClientRect();
+  const FIXED_CANVAS_SIZE = 2000;
+  // Map to fixed canvas coordinates
+  const scale = Math.min(rect.width, rect.height) / FIXED_CANVAS_SIZE;
+  // Center the canvas in the container
+  let offsetX = 0, offsetY = 0;
+  if (rect.width > rect.height) {
+    offsetX = (rect.width - rect.height) / 2;
+  } else {
+    offsetY = (rect.height - rect.width) / 2;
+  }
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
+    x: (event.clientX - rect.left - offsetX) / scale,
+    y: (event.clientY - rect.top - offsetY) / scale
   };
 }
 
@@ -803,7 +963,7 @@ function pickColorAtPoint(point) {
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   const x = Math.max(0, Math.min(board.width - 1, Math.floor(point.x * dpr)));
   const y = Math.max(0, Math.min(board.height - 1, Math.floor(point.y * dpr)));
-  const pixel = boardCtx.getImageData(x, y, 1, 1).data;
+  const pixel = boardCtx.getImageData(x, y, 1, 1, { willReadFrequently: true }).data;
   const alpha = pixel[3] / 255;
 
   const r = Math.round(pixel[0] * alpha + 255 * (1 - alpha));
@@ -907,7 +1067,7 @@ function renderLayersList() {
       renderLayersList();
     });
 
-    // Drag events
+    // Drag events (if you want to support reordering)
     item.addEventListener("dragstart", (e) => {
       dragSrcIndex = i;
       item.classList.add("dragging");
@@ -948,49 +1108,42 @@ function renderLayersList() {
   }
 }
 
-// ===== Endless Mode =====
 
-function screenToWorld(cssX, cssY) {
-  return {
-    x: cssX / endlessViewport.scale + endlessViewport.x,
-    y: cssY / endlessViewport.scale + endlessViewport.y
-  };
-}
-
-function setMode(mode) {
-  drawing = false;
-  lastPoint = null;
-  activePointerId = null;
-  endlessPointers.clear();
-  endlessPinchState = null;
-  endlessPanning = false;
-
-  currentMode = mode;
-  document.body.classList.toggle("mode-endless", mode === "endless");
-
-  const modeLabel = document.getElementById("mode-label");
-  const modesWrap = document.getElementById("modes-wrap");
-  const modeNormalBtn = document.getElementById("mode-normal-btn");
-  const modeEndlessBtn = document.getElementById("mode-endless-btn");
-
-  if (modeNormalBtn) modeNormalBtn.classList.toggle("active", mode === "normal");
-  if (modeEndlessBtn) modeEndlessBtn.classList.toggle("active", mode === "endless");
-  const labels = { normal: "Normal", endless: "Endless" };
-  if (modeLabel) modeLabel.textContent = labels[mode] || mode;
-  if (modesWrap) modesWrap.classList.remove("open");
-
-  if (mode === "endless") {
-    endlessViewport = { x: 0, y: 0, scale: 1 };
-    updateZoomIndicator();
-  }
-
-  // Refresh 3D if active
-  if (show3d) render25dScene();
-
-  configureCanvas();
-}
+// setMode and endless mode logic removed
 
 function handleEndlessPointerDown(event) {
+    // Always start a new stroke group for undo/redo in endless mode
+    currentStroke = { type: "strokeGroup", actions: [] };
+    if (filling) {
+      const rect = board.getBoundingClientRect();
+      const cx = event.clientX - rect.left;
+      const cy = event.clientY - rect.top;
+      const color = colorInput.value;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const px = Math.floor(cx * dpr);
+      const py = Math.floor(cy * dpr);
+      floodFill(px, py, color, activeLayerIndex);
+      socket.emit("draw_segment", {
+        fill: true,
+        x: cx / board.clientWidth,
+        y: cy / board.clientHeight,
+        color,
+        layer: activeLayerIndex,
+        endless: true
+      });
+      currentStroke.actions.push({ type: "fill", x: cx / board.clientWidth, y: cy / board.clientHeight, color, layer: activeLayerIndex, endless: true });
+      // On fill, immediately push to undoStack
+      if (currentStroke.actions.length > 0) {
+        undoStack.push(currentStroke);
+        if (undoStack.length > 15) undoStack.shift();
+        redoStack = [];
+      }
+      currentStroke = null;
+      try { board.releasePointerCapture(event.pointerId); } catch (e) {}
+      endlessPointers.delete(event.pointerId);
+      renderEndless();
+      return;
+    }
   if (event.pointerType === "touch") event.preventDefault();
 
   const rect = board.getBoundingClientRect();
@@ -1082,23 +1235,30 @@ function handleEndlessPointerMove(event) {
     color,
     size: worldSize,
     brushStyle,
-    erase: erasing
+    erase: erasing,
+    endless: true,
+    layer: activeLayerIndex
   };
 
   endlessStrokes.push(stroke);
   renderEndlessIncremental(stroke);
 
-  socket.emit("draw_segment", {
-    from: stroke.from,
-    to: stroke.to,
-    color,
-    size: worldSize,
-    brushStyle,
-    erase: erasing,
-    endless: true,
-    layer: activeLayerIndex
-  });
+  socket.emit("draw_segment", stroke);
 
+  // Add to current stroke group for undo/redo
+  if (currentStroke) {
+    currentStroke.actions.push({
+      type: "stroke",
+      from: { x: lastPoint.x, y: lastPoint.y },
+      to: { x: worldPt.x, y: worldPt.y },
+      color,
+      size: worldSize,
+      brushStyle,
+      erase: erasing,
+      endless: true,
+      layer: activeLayerIndex
+    });
+  }
   lastPoint = worldPt;
 
   if (erasing && event.pointerType !== "touch") {
@@ -1132,6 +1292,13 @@ function handleEndlessPointerUp(event) {
     drawing = false;
     lastPoint = null;
     activePointerId = null;
+    // On pointer up, push the stroke group to undo stack (if not empty)
+    if (currentStroke && currentStroke.actions.length > 0) {
+      undoStack.push(currentStroke);
+      if (undoStack.length > 15) undoStack.shift();
+      redoStack = [];
+    }
+    currentStroke = null;
     if (currentMode === "endless") renderEndless();
   }
 }
@@ -1234,6 +1401,14 @@ function renderEndless() {
   boardCtx.setTransform(s, 0, 0, s, tx, ty);
 
   for (const stroke of endlessStrokes) {
+    if (stroke.type === "fill") {
+      // Fill in endless mode
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const px = Math.floor(stroke.x * board.clientWidth * dpr);
+      const py = Math.floor(stroke.y * board.clientHeight * dpr);
+      floodFill(px, py, stroke.color, stroke.layer);
+      continue;
+    }
     // Viewport culling — skip strokes entirely outside view
     const margin = stroke.size * 2;
     const sMinX = Math.min(stroke.from.x, stroke.to.x) - margin;
@@ -1473,10 +1648,11 @@ function render25dScene() {
 
   for (let i = 0; i < count; i++) {
     const l = layers[i];
+    // In 3D mode, skip rendering invisible layers entirely
+    if (!l.visible) continue;
     const plane = document.createElement("div");
     plane.className = "layer-plane-25d";
     if (i === activeLayerIndex) plane.classList.add("active-layer-plane");
-    if (!l.visible) plane.style.opacity = "0.25";
 
     // Center the stack: layer 0 at back, topmost at front
     const zOffset = (i - (count - 1) / 2) * spacing;
@@ -1522,28 +1698,8 @@ function refresh25dCanvases() {
   const scene = document.getElementById("scene-25d");
   if (!scene) return;
 
-  const planes = scene.querySelectorAll(".layer-plane-25d");
-  planes.forEach((plane, i) => {
-    if (i >= layers.length) return;
-    const c = plane.querySelector("canvas");
-    if (!c) return;
-    const l = layers[i];
-    if (c.width !== l.canvas.width || c.height !== l.canvas.height) {
-      c.width = l.canvas.width;
-      c.height = l.canvas.height;
-    }
-    const ctx = c.getContext("2d");
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(l.canvas, 0, 0);
-
-    plane.style.opacity = l.visible ? "" : "0.25";
-    plane.classList.toggle("active-layer-plane", i === activeLayerIndex);
-    const label = plane.querySelector(".layer-label-25d");
-    if (label) label.textContent = l.name + (i === activeLayerIndex ? " ●" : "");
-  });
-
-  // Re-render if layer count changed
-  if (planes.length !== layers.length) render25dScene();
+  // Instead of updating planes in place, just re-render the scene to match visible layers
+  render25dScene();
 }
 
 // Orbit handlers — right-click drag or Alt+drag on the board canvas
