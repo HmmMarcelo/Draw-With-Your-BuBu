@@ -1,8 +1,17 @@
+// 2K canvas constants and viewport object
+const CANVAS_W = 2560;
+const CANVAS_H = 1440;
+let normalViewport = { x: 0, y: 0, scale: 1 };
+let _panActive = false;
+let _panStart = null;
+let _panViewStart = null;
 const socket = io();
 
 const board = document.getElementById("board");
 const boardCtx = board.getContext("2d");
 const colorInput = document.getElementById("color");
+// Set default brush color to white
+if (colorInput) colorInput.value = '#ffffff';
 const brushInput = document.getElementById("brush");
 const brushStyleInput = document.getElementById("brush-style");
 const brushValue = document.getElementById("brush-value");
@@ -192,9 +201,8 @@ function setupSocket() {
       return;
     }
     if (segment.fill) {
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const px = Math.floor(segment.x * board.clientWidth * dpr);
-      const py = Math.floor(segment.y * board.clientHeight * dpr);
+      const px = Math.floor(segment.x * CANVAS_W);
+      const py = Math.floor(segment.y * CANVAS_H);
       floodFill(px, py, segment.color, li);
     } else {
       drawSegment(segment.from, segment.to, segment.color, segment.size, li, segment.erase, segment.brushStyle);
@@ -221,9 +229,8 @@ function setupSocket() {
           erase: segment.erase || false
         });
       } else if (segment.fill) {
-        const dpr = Math.max(1, window.devicePixelRatio || 1);
-        const px = Math.floor(segment.x * board.clientWidth * dpr);
-        const py = Math.floor(segment.y * board.clientHeight * dpr);
+        const px = Math.floor(segment.x * CANVAS_W);
+        const py = Math.floor(segment.y * CANVAS_H);
         floodFill(px, py, segment.color, li);
       } else {
         drawSegment(segment.from, segment.to, segment.color, segment.size, li, segment.erase, segment.brushStyle);
@@ -235,6 +242,57 @@ function setupSocket() {
 }
 
 function setupUI() {
+          // Scroll-to-zoom in normal mode
+          board.addEventListener("wheel", (e) => {
+            if (currentMode !== "normal" || show3d) return;
+            e.preventDefault();
+            const rect = board.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            // World point under mouse before zoom
+            const worldX = mouseX / normalViewport.scale + normalViewport.x;
+            const worldY = mouseY / normalViewport.scale + normalViewport.y;
+            const factor = e.deltaY > 0 ? 0.9 : 1 / 0.9;
+            normalViewport.scale = Math.max(0.1, Math.min(10, normalViewport.scale * factor));
+            // Repin world point under mouse
+            normalViewport.x = worldX - mouseX / normalViewport.scale;
+            normalViewport.y = worldY - mouseY / normalViewport.scale;
+            compositeLayers();
+          }, { passive: false });
+        // Keyboard arrow key pan
+        window.addEventListener("keydown", (e) => {
+          if (currentMode !== "normal") return;
+          const step = 40 / normalViewport.scale;
+          if (e.key === "ArrowLeft")  { normalViewport.x -= step; compositeLayers(); e.preventDefault(); }
+          if (e.key === "ArrowRight") { normalViewport.x += step; compositeLayers(); e.preventDefault(); }
+          if (e.key === "ArrowUp")    { normalViewport.y -= step; compositeLayers(); e.preventDefault(); }
+          if (e.key === "ArrowDown")  { normalViewport.y += step; compositeLayers(); e.preventDefault(); }
+        });
+      // Pan with right-click drag (normal mode)
+      board.addEventListener("pointerdown", (e) => {
+        if (currentMode !== "normal" || show3d) return;
+        if (e.button === 2) {
+          _panActive = true;
+          _panStart = { x: e.clientX, y: e.clientY };
+          _panViewStart = { x: normalViewport.x, y: normalViewport.y };
+          board.setPointerCapture(e.pointerId);
+          board.style.cursor = "grabbing";
+          e.preventDefault();
+        }
+      });
+      window.addEventListener("pointermove", (e) => {
+        if (!_panActive) return;
+        normalViewport.x = _panViewStart.x - (e.clientX - _panStart.x) / normalViewport.scale;
+        normalViewport.y = _panViewStart.y - (e.clientY - _panStart.y) / normalViewport.scale;
+        compositeLayers();
+      });
+      window.addEventListener("pointerup", () => {
+        if (_panActive) {
+          _panActive = false;
+          board.style.cursor = "crosshair";
+        }
+      });
+      board.addEventListener("contextmenu", (e) => e.preventDefault());
     // Undo/Redo button handlers
     const undoBtn = document.getElementById("undo-btn");
     const redoBtn = document.getElementById("redo-btn");
@@ -259,24 +317,23 @@ function setupUI() {
 
     if (filling) {
       const pt = getRelativePoint(event);
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const px = Math.floor(pt.x * dpr);
-      const py = Math.floor(pt.y * dpr);
+      const px = Math.floor(pt.x);
+      const py = Math.floor(pt.y);
       const color = colorInput.value;
       const cmd = new FillCommand(activeLayerIndex, px, py, color);
       cmd.execute();
       pushCommand(cmd);
       socket.emit("draw_segment", {
         fill: true,
-        x: pt.x / board.clientWidth,
-        y: pt.y / board.clientHeight,
+        x: pt.x / CANVAS_W,
+        y: pt.y / CANVAS_H,
         color,
         layer: activeLayerIndex,
         endless: currentMode === "endless"
       });
       if (captured) board.releasePointerCapture(event.pointerId);
       activePointerId = null;
-      if (currentMode === "endless") endlessStrokes.push({ type: "fill", x: pt.x / board.clientWidth, y: pt.y / board.clientHeight, color, layer: activeLayerIndex });
+      if (currentMode === "endless") endlessStrokes.push({ type: "fill", x: pt.x / CANVAS_W, y: pt.y / CANVAS_H, color, layer: activeLayerIndex });
       return;
     }
 
@@ -542,34 +599,17 @@ function setFullscreenMode(enabled) {
 }
 
 function configureCanvas() {
-  // Always use fixed internal resolution
-  const FIXED_CANVAS_SIZE = 2000;
-  board.width = FIXED_CANVAS_SIZE;
-  board.height = FIXED_CANVAS_SIZE;
-  boardCtx.imageSmoothingEnabled = false;
-
-  // Save layer contents
-  const temps = layers.map(l => {
-    const t = document.createElement("canvas");
-    t.width = l.canvas.width;
-    t.height = l.canvas.height;
-    t.getContext("2d").drawImage(l.canvas, 0, 0);
-    return t;
-  });
-
-  layers.forEach((l, i) => {
-    const oldW = l.canvas.width;
-    const oldH = l.canvas.height;
-    l.canvas.width = FIXED_CANVAS_SIZE;
-    l.canvas.height = FIXED_CANVAS_SIZE;
-    l.ctx.imageSmoothingEnabled = false;
-    if (oldW && oldH) {
-      l.ctx.save();
-      l.ctx.setTransform(FIXED_CANVAS_SIZE / oldW, 0, 0, FIXED_CANVAS_SIZE / oldH, 0, 0);
-      l.ctx.drawImage(temps[i], 0, 0);
-      l.ctx.restore();
-    }
-  });
+  // DPR-aware internal resolution
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const rect = board.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    requestAnimationFrame(configureCanvas);
+    return;
+  }
+  board.width = Math.round(rect.width * dpr);
+  board.height = Math.round(rect.height * dpr);
+  boardCtx.imageSmoothingEnabled = true;
+  boardCtx.imageSmoothingQuality = "high";
 
   if (currentMode === "endless") {
     renderEndless();
@@ -655,15 +695,15 @@ function drawSegment(from, to, color, size, layerIdx, isErase, brushStyle = "rou
   const layer = layers[li];
   if (!layer) return;
   const lCtx = layer.ctx;
-  const start = denormalizePoint(from);
-  const end = denormalizePoint(to);
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  // For normal mode, from/to are already in world/canvas coordinates
+  const start = from;
+  const end = to;
 
-  const x0 = Math.round(start.x * dpr);
-  const y0 = Math.round(start.y * dpr);
-  const x1 = Math.round(end.x * dpr);
-  const y1 = Math.round(end.y * dpr);
-  const radius = Math.max(1, Math.round((size * dpr) / 2));
+  const x0 = Math.round(start.x);
+  const y0 = Math.round(start.y);
+  const x1 = Math.round(end.x);
+  const y1 = Math.round(end.y);
+  const radius = Math.max(1, Math.round(size / 2));
 
   let r = 0, g = 0, b = 0;
   if (!isErase) {
@@ -672,8 +712,8 @@ function drawSegment(from, to, color, size, layerIdx, isErase, brushStyle = "rou
     b = parseInt(color.slice(5, 7), 16);
   }
 
-  const w = board.width;
-  const h = board.height;
+  const w = layer.canvas.width;
+  const h = layer.canvas.height;
 
   const imageData = lCtx.getImageData(0, 0, w, h, { willReadFrequently: true });
   const data = imageData.data;
@@ -837,8 +877,8 @@ function floodFill(startX, startY, hexColor, layerIdx) {
   const layer = layers[li];
   if (!layer) return;
   const lCtx = layer.ctx;
-  let w = board.width;
-  let h = board.height;
+  let w = layer.canvas.width; // CANVAS_W
+  let h = layer.canvas.height; // CANVAS_H
   // In endless mode, restrict fill to visible world viewport
   let worldViewport = null;
   if (currentMode === "endless") {
@@ -922,54 +962,82 @@ function floodFill(startX, startY, hexColor, layerIdx) {
 }
 
 function normalizePoint(point) {
-  // Map fixed canvas coordinates to [0,1] for network sync
-  const FIXED_CANVAS_SIZE = 2000;
   return {
-    x: point.x / FIXED_CANVAS_SIZE,
-    y: point.y / FIXED_CANVAS_SIZE
+    x: point.x / CANVAS_W,
+    y: point.y / CANVAS_H
   };
 }
 
 function denormalizePoint(point) {
-  const FIXED_CANVAS_SIZE = 2000;
-  if (point.x <= 1 && point.y <= 1) {
-    return {
-      x: point.x * FIXED_CANVAS_SIZE,
-      y: point.y * FIXED_CANVAS_SIZE
-    };
-  }
-  return point;
+  return {
+    x: point.x * CANVAS_W,
+    y: point.y * CANVAS_H
+  };
 }
 
 function getRelativePoint(event) {
   const rect = board.getBoundingClientRect();
-  const FIXED_CANVAS_SIZE = 2000;
-  // Map to fixed canvas coordinates
-  const scale = Math.min(rect.width, rect.height) / FIXED_CANVAS_SIZE;
-  // Center the canvas in the container
-  let offsetX = 0, offsetY = 0;
-  if (rect.width > rect.height) {
-    offsetX = (rect.width - rect.height) / 2;
-  } else {
-    offsetY = (rect.height - rect.width) / 2;
-  }
+  const cssX = event.clientX - rect.left;
+  const cssY = event.clientY - rect.top;
+  // CSS px → world (layer canvas) coords
   return {
-    x: (event.clientX - rect.left - offsetX) / scale,
-    y: (event.clientY - rect.top - offsetY) / scale
+    x: cssX / normalViewport.scale + normalViewport.x,
+    y: cssY / normalViewport.scale + normalViewport.y
   };
+
+// Pan with right-click drag in normal mode
+board.addEventListener("pointerdown", (e) => {
+  if (show3d || currentMode === "endless") return;
+  if (e.button === 2) { // right-click
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panOrigin = { x: panX, y: panY };
+    board.setPointerCapture(e.pointerId);
+    board.style.cursor = "grabbing";
+    e.preventDefault();
+  }
+});
+
+board.addEventListener("pointermove", (e) => {
+  if (show3d || currentMode === "endless") return;
+  if (isPanning && panStart) {
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    panX = panOrigin.x + dx;
+    panY = panOrigin.y + dy;
+    board.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    e.preventDefault();
+  }
+});
+
+board.addEventListener("pointerup", (e) => {
+  if (show3d || currentMode === "endless") return;
+  if (isPanning) {
+    isPanning = false;
+    panStart = null;
+    panOrigin = null;
+    board.style.cursor = "crosshair";
+    e.preventDefault();
+  }
+});
+
+board.addEventListener("contextmenu", (e) => {
+  if (show3d || currentMode === "endless") return;
+  e.preventDefault(); // prevent default context menu on right-click
+});
 }
 
 function pickColorAtPoint(point) {
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const x = Math.max(0, Math.min(board.width - 1, Math.floor(point.x * dpr)));
-  const y = Math.max(0, Math.min(board.height - 1, Math.floor(point.y * dpr)));
-  const pixel = boardCtx.getImageData(x, y, 1, 1, { willReadFrequently: true }).data;
+  // point is already in layer canvas space from getRelativePoint
+  const x = Math.max(0, Math.min(CANVAS_W - 1, Math.floor(point.x)));
+  const y = Math.max(0, Math.min(CANVAS_H - 1, Math.floor(point.y)));
+  const activeLayer = layers[activeLayerIndex];
+  const src = activeLayer ? activeLayer.ctx : boardCtx;
+  const pixel = src.getImageData(x, y, 1, 1).data;
   const alpha = pixel[3] / 255;
-
   const r = Math.round(pixel[0] * alpha + 255 * (1 - alpha));
   const g = Math.round(pixel[1] * alpha + 255 * (1 - alpha));
   const b = Math.round(pixel[2] * alpha + 255 * (1 - alpha));
-
   colorInput.value = rgbToHex(r, g, b);
 }
 
@@ -989,10 +1057,11 @@ function generateRoomCode() {
 
 function createLayerCanvas() {
   const c = document.createElement("canvas");
-  c.width = board.width;
-  c.height = board.height;
+  c.width = CANVAS_W;
+  c.height = CANVAS_H;
   const lCtx = c.getContext("2d");
-  lCtx.imageSmoothingEnabled = false;
+  lCtx.imageSmoothingEnabled = true;
+  lCtx.imageSmoothingQuality = "high";
   return { canvas: c, ctx: lCtx, name: "Layer " + layers.length, visible: true };
 }
 
@@ -1015,14 +1084,43 @@ function removeLayer(index) {
 }
 
 function compositeLayers() {
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
   boardCtx.save();
   boardCtx.setTransform(1, 0, 0, 1, 0, 0);
   boardCtx.clearRect(0, 0, board.width, board.height);
+
+  // Transform: scale then translate for pan
+  const s = normalViewport.scale * dpr;
+  const tx = -normalViewport.x * s;
+  const ty = -normalViewport.y * s;
+  boardCtx.setTransform(s, 0, 0, s, tx, ty);
+
+  // Draw layers
   for (let i = 0; i < layers.length; i++) {
     if (layers[i].visible) boardCtx.drawImage(layers[i].canvas, 0, 0);
   }
+
+  // Dotted border around the 2K canvas area
+  boardCtx.save();
+  boardCtx.setLineDash([8, 8]);
+  boardCtx.lineWidth = 2 / s;
+  boardCtx.strokeStyle = "rgba(120,120,180,0.6)";
+  boardCtx.strokeRect(0, 0, CANVAS_W, CANVAS_H);
+  boardCtx.restore();
+
   boardCtx.restore();
   refresh25dCanvases();
+  // Pan button logic
+  const panBtn = document.getElementById("pan-btn");
+  let panToolActive = false;
+  if (panBtn) {
+    panBtn.addEventListener("click", () => {
+      panToolActive = !panToolActive;
+      panBtn.style.background = panToolActive ? "rgba(59,130,246,0.25)" : "rgba(255,255,255,0.85)";
+      board.style.cursor = panToolActive ? "grab" : (erasing ? "none" : "crosshair");
+    });
+  }
+
 }
 
 function updateLayerLabel() {

@@ -65,7 +65,14 @@ body.dark .join-bar input[type="text"] {
 }
 
 body.dark #board {
-  background: var(--canvas-bg);
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px rgba(16, 42, 67, 0.08);
 }
 
 * {
@@ -88,19 +95,11 @@ body {
 }
 
 .app-shell {
-  width: 100vw;
-  max-width: 100vw;
-  margin: 0;
-  padding: 1.25rem 2vw 1.25rem 2vw;
+  width: min(1100px, 96vw);
+  margin: 1.25rem auto;
+  padding: 1rem;
   display: grid;
   gap: 1rem;
-  box-sizing: border-box;
-}
-
-@media (max-width: 700px) {
-  .app-shell {
-    padding: 0.5rem 0.5vw;
-  }
 }
 
 .join-bar,
@@ -461,10 +460,15 @@ button:active {
 }
 
 .canvas-stage {
-  padding: 0.7rem;
-  min-height: 72vh;
+  padding: 0;
+  overflow: hidden;
+  min-height: 60vh;
   position: relative;
-  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 #eraser-cursor {
@@ -482,30 +486,16 @@ body.dark #eraser-cursor {
 }
 
 #board {
+  display: block;
   width: 100%;
   height: 100%;
-  max-width: 100vw;
-  max-height: 72vh;
   aspect-ratio: 1 / 1;
-  display: block;
   border-radius: 12px;
-  background: #fff;
   cursor: crosshair;
   touch-action: none;
   box-shadow: inset 0 0 0 1px rgba(16, 42, 67, 0.08);
-  object-fit: contain;
 }
 
-.canvas-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 72vh;
-  min-height: 72vh;
-  position: relative;
-  z-index: 1;
-}
 body.canvas-fullscreen {
   overflow: hidden;
 }
@@ -897,10 +887,9 @@ body.canvas-fullscreen .zoom-indicator {
     text-align: left;
   }
 
-  .canvas-stage,
-  #board {
-    min-height: 64vh;
-    height: 64vh;
+  .canvas-stage {
+    min-height: 55vh;
+    height: 55vh;
   }
 
   body.canvas-fullscreen .controls {
@@ -914,4 +903,23 @@ body.canvas-fullscreen .zoom-indicator {
   body.canvas-fullscreen .controls .color-input-btn {
     flex: 0 0 auto;
   }
+}
+
+/* Responsive gap for app-shell */
+.app-shell {
+  width: 100vw;
+  max-width: 100vw;
+  margin: 0;
+  padding-left: 1cm;
+  padding-right: 1cm;
+  box-sizing: border-box;
+}
+
+/* Make canvas 16:9 and responsive */
+#board {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 80vh;
 }
