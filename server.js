@@ -9,22 +9,55 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const MAX_ROOM_SIZE = 10;
-const MAX_HISTORY = 50000; // max segments stored per room
+const MAX_HISTORY = 50000;
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 min — room data kept until this
 
-// Per-room drawing history for late-join sync
-const roomHistory = new Map();
+// Room data: { history: [], inactivityTimer }
+const rooms = new Map();
+
+function getOrCreateRoom(roomId) {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, { history: [], inactivityTimer: null });
+  }
+  return rooms.get(roomId);
+}
+
+function resetInactivityTimer(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
+  room.inactivityTimer = setTimeout(() => {
+    rooms.delete(roomId);
+  }, INACTIVITY_TIMEOUT);
+}
 
 app.use(express.static(path.join(__dirname, "public")));
 
 io.on("connection", (socket) => {
-  socket.on("join_room", (roomId) => {
+  socket.on("join_room", (data) => {
+    let roomId, sUserId, mode;
+    if (typeof data === "string") {
+      roomId = data;
+      sUserId = socket.id;
+      mode = "normal";
+    } else {
+      roomId = data.roomId;
+      sUserId = data.userId || socket.id;
+      mode = data.mode || "normal";
+    }
+
     if (!roomId || typeof roomId !== "string") {
       socket.emit("join_error", "Invalid room code.");
       return;
     }
 
-    const room = io.sockets.adapter.rooms.get(roomId);
-    const roomSize = room ? room.size : 0;
+    // Leave previous room
+    if (socket.data.roomId) {
+      socket.leave(socket.data.roomId);
+    }
+
+    const ioRoom = io.sockets.adapter.rooms.get(roomId);
+    const roomSize = ioRoom ? ioRoom.size : 0;
 
     if (roomSize >= MAX_ROOM_SIZE) {
       socket.emit("room_full");
@@ -33,11 +66,16 @@ io.on("connection", (socket) => {
 
     socket.join(roomId);
     socket.data.roomId = roomId;
+    socket.data.odUserId = sUserId;
+    socket.data.mode = mode;
 
-    // Send existing drawing history to the new joiner
-    const history = roomHistory.get(roomId);
-    if (history && history.length > 0) {
-      socket.emit("draw_history", history);
+    const room = getOrCreateRoom(roomId);
+    resetInactivityTimer(roomId);
+
+    // Send existing history filtered by mode
+    const modeHistory = room.history.filter(h => h.mode === mode);
+    if (modeHistory.length > 0) {
+      socket.emit("draw_history", modeHistory);
     }
 
     io.to(roomId).emit("presence", {
@@ -50,28 +88,40 @@ io.on("connection", (socket) => {
     const roomId = socket.data.roomId;
     if (!roomId) return;
 
-    // Store in history
-    if (!roomHistory.has(roomId)) roomHistory.set(roomId, []);
-    const history = roomHistory.get(roomId);
-    history.push(payload);
-    // Trim oldest if over limit
-    if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
+    const entry = {
+      ...payload,
+      userId: socket.data.odUserId,
+      mode: socket.data.mode
+    };
 
-    socket.to(roomId).emit("draw_segment", payload);
+    const room = getOrCreateRoom(roomId);
+    room.history.push(entry);
+    if (room.history.length > MAX_HISTORY) {
+      room.history.splice(0, room.history.length - MAX_HISTORY);
+    }
+    resetInactivityTimer(roomId);
+
+    socket.to(roomId).emit("draw_segment", entry);
   });
 
-  socket.on("clear_canvas", () => {
+  socket.on("clear_canvas", (data) => {
     const roomId = socket.data.roomId;
     if (!roomId) return;
-    // Only clear history for this mode
-    if (data && data.mode === "endless") {
-      // No-op for now, as endless mode is client-only
-      socket.to(roomId).emit("clear_canvas", { mode: "endless" });
-    } else {
-      // Normal mode: clear history
-      roomHistory.delete(roomId);
-      socket.to(roomId).emit("clear_canvas", { mode: "normal" });
+
+    const mode = (data && data.mode) || socket.data.mode || "normal";
+    const cUserId = socket.data.odUserId;
+
+    const room = rooms.get(roomId);
+    if (room) {
+      // Remove only this user's strokes for this mode
+      room.history = room.history.filter(
+        h => !(h.userId === cUserId && h.mode === mode)
+      );
     }
+
+    // Send remaining history for this mode to ALL in room so they re-render
+    const remaining = room ? room.history.filter(h => h.mode === mode) : [];
+    io.to(roomId).emit("history_refresh", { mode, history: remaining });
   });
 
   socket.on("disconnect", () => {
@@ -79,14 +129,14 @@ io.on("connection", (socket) => {
     if (!roomId) return;
 
     setTimeout(() => {
-      const room = io.sockets.adapter.rooms.get(roomId);
-      if (!room) {
-        // Room empty — clean up history
-        roomHistory.delete(roomId);
+      const ioRoom = io.sockets.adapter.rooms.get(roomId);
+      if (!ioRoom) {
+        // Room empty — keep data alive behind inactivity timer
+        resetInactivityTimer(roomId);
         return;
       }
       io.to(roomId).emit("presence", {
-        count: room.size,
+        count: ioRoom.size,
         max: MAX_ROOM_SIZE
       });
     }, 0);
