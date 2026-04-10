@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Draw Together — Guess</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="guess.css" />
+  </head>
+  <body>
+    <script>if(localStorage.getItem('draw-dark-mode')!=='false')document.body.classList.add('dark')</script>
+    <main class="app-shell guess-shell">
+      <!-- Join Bar -->
+      <section class="join-bar">
+        <div class="join-group">
+          <input id="room-input" type="text" placeholder="Enter room code" maxlength="20" autocomplete="off" />
+          <button id="join-btn" type="button" title="Join Room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
+        </div>
+        <div class="join-group">
+          <button id="new-room-btn" type="button" title="New Room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button id="copy-link" type="button" title="Copy Invite Link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+        </div>
+        <div class="join-info">
+          <p id="presence" class="status-pill">Connecting...</p>
+          <p id="room-code" class="room-text"></p>
+        </div>
+      </section>
+
+      <!-- Header -->
+      <header class="topbar">
+        <div>
+          <h1>Draw Together</h1>
+          <p class="subtitle">Guess the drawing!</p>
+        </div>
+        <div class="tool-wrap" id="modes-wrap">
+          <button id="modes-btn" type="button" title="Switch Mode">Modes: <span id="mode-label">Guess</span></button>
+          <div class="tool-popup modes-dropdown" id="modes-popup">
+            <button id="mode-normal-btn" type="button" class="mode-option">Normal</button>
+            <button id="mode-endless-btn" type="button" class="mode-option">"Endless"</button>
+            <button id="mode-guess-btn" type="button" class="mode-option active">Guess</button>
+          </div>
+        </div>
+        <button id="dark-toggle" type="button" title="Toggle dark mode">🌙</button>
+      </header>
+
+      <!-- Game Layout -->
+      <section class="guess-layout">
+        <!-- Left Sidebar -->
+        <aside class="guess-sidebar">
+          <div class="sidebar-section">
+            <h3 class="sidebar-title">Players</h3>
+            <div id="player-list" class="player-list"></div>
+          </div>
+          <div id="game-settings" class="sidebar-section game-settings">
+            <h3 class="sidebar-title">Settings</h3>
+            <label class="setting-row">
+              <span>Time per round</span>
+              <select id="time-select">
+                <option value="30">30s</option>
+                <option value="60">60s</option>
+                <option value="80" selected>80s</option>
+                <option value="120">120s</option>
+              </select>
+            </label>
+            <label class="setting-row">
+              <span>Difficulty</span>
+              <div class="diff-btns">
+                <button type="button" class="diff-btn" data-diff="easy">Easy</button>
+                <button type="button" class="diff-btn active" data-diff="normal">Normal</button>
+                <button type="button" class="diff-btn" data-diff="hard">Hard</button>
+              </div>
+            </label>
+            <label class="setting-row">
+              <span>Rounds</span>
+              <select id="rounds-select">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+            <button id="start-btn" type="button" class="start-btn" disabled>Start Game</button>
+            <p id="settings-info" class="settings-info">Need at least 2 players</p>
+          </div>
+        </aside>
+
+        <!-- Main Game Area -->
+        <div class="guess-main">
+          <!-- Canvas Area -->
+          <div class="guess-canvas-wrap">
+            <!-- Word display -->
+            <div id="word-display" class="word-display"></div>
+            <!-- Timer -->
+            <div id="timer-display" class="timer-display" style="display:none">
+              <svg class="timer-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span id="timer-text">--</span>
+            </div>
+            <!-- Canvas -->
+            <canvas id="guess-board"></canvas>
+            <!-- Who is drawing indicator -->
+            <div id="drawing-indicator" class="drawing-indicator" style="display:none"></div>
+            <!-- Word pick overlay -->
+            <div id="word-pick-overlay" class="game-overlay word-pick-overlay" style="display:none">
+              <h3>Pick a word to draw!</h3>
+              <div id="word-options" class="word-options"></div>
+              <div class="pick-timer-wrap">
+                <span>Time to pick: </span>
+                <span id="pick-timer-text" class="pick-timer-text">10</span>
+              </div>
+            </div>
+            <!-- Round result overlay -->
+            <div id="round-result-overlay" class="game-overlay round-result-overlay" style="display:none">
+              <h3 id="round-result-title">Round Over!</h3>
+              <p id="round-result-word" class="result-word"></p>
+            </div>
+            <!-- Game over overlay -->
+            <div id="game-over-overlay" class="game-overlay game-over-overlay" style="display:none">
+              <h2>Game Over!</h2>
+              <div id="final-scores" class="final-scores"></div>
+              <p class="game-over-hint">Settings are back — start a new game!</p>
+            </div>
+          </div>
+
+          <!-- Drawing Tools (only visible for current drawer) -->
+          <div id="drawing-tools" class="drawing-tools" style="display:none">
+            <div class="color-swatches">
+              <button type="button" class="swatch active" data-color="#000000" style="background:#000000" title="Black"></button>
+              <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff" title="White"></button>
+              <button type="button" class="swatch" data-color="#9e9e9e" style="background:#9e9e9e" title="Gray"></button>
+              <button type="button" class="swatch" data-color="#e53935" style="background:#e53935" title="Red"></button>
+              <button type="button" class="swatch" data-color="#ff9800" style="background:#ff9800" title="Orange"></button>
+              <button type="button" class="swatch" data-color="#ffeb3b" style="background:#ffeb3b" title="Yellow"></button>
+              <button type="button" class="swatch" data-color="#4caf50" style="background:#4caf50" title="Green"></button>
+              <button type="button" class="swatch" data-color="#2196f3" style="background:#2196f3" title="Blue"></button>
+              <button type="button" class="swatch" data-color="#9c27b0" style="background:#9c27b0" title="Purple"></button>
+              <button type="button" class="swatch" data-color="#e91e63" style="background:#e91e63" title="Pink"></button>
+              <button type="button" class="swatch" data-color="#795548" style="background:#795548" title="Brown"></button>
+              <button type="button" class="swatch" data-color="#00bcd4" style="background:#00bcd4" title="Cyan"></button>
+              <input id="g-custom-color" type="color" value="#000000" class="custom-color-input" title="Custom Color" />
+            </div>
+            <div class="tool-row">
+              <div class="size-btns">
+                <button type="button" class="size-btn" data-size="2" title="Thin">
+                  <span class="size-dot" style="width:4px;height:4px"></span>
+                </button>
+                <button type="button" class="size-btn active" data-size="5" title="Small">
+                  <span class="size-dot" style="width:7px;height:7px"></span>
+                </button>
+                <button type="button" class="size-btn" data-size="12" title="Medium">
+                  <span class="size-dot" style="width:12px;height:12px"></span>
+                </button>
+                <button type="button" class="size-btn" data-size="24" title="Large">
+                  <span class="size-dot" style="width:18px;height:18px"></span>
+                </button>
+              </div>
+              <div class="tool-actions">
+                <button id="g-eraser-btn" type="button" class="tool-action-btn" title="Eraser"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+                <button id="g-undo-btn" type="button" class="tool-action-btn" title="Undo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14H5v-4"/><path d="M20 20a9 9 0 0 0-15-7.5L5 10"/></svg></button>
+                <button id="g-clear-btn" type="button" class="tool-action-btn" title="Clear Canvas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat -->
+          <div class="guess-chat">
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-input-wrap">
+              <input id="chat-input" type="text" placeholder="Type your guess..." maxlength="100" autocomplete="off" />
+              <button id="chat-send" type="button" title="Send">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="guess.js"></script>
+  </body>
+</html>

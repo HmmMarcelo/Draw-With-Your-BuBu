@@ -1118,6 +1118,8 @@ function setupUI() {
   const modeEndlessBtn = document.getElementById("mode-endless-btn");
   if (modeNormalBtn) modeNormalBtn.addEventListener("click", () => switchMode("normal"));
   if (modeEndlessBtn) modeEndlessBtn.addEventListener("click", () => switchMode("endless"));
+  const modeGuessBtn = document.getElementById("mode-guess-btn");
+  if (modeGuessBtn) modeGuessBtn.addEventListener("click", () => switchMode("guess"));
 
   // 3D toggle
   if (toggle3dBtn) toggle3dBtn.addEventListener("click", () => toggle3dView());
@@ -1179,7 +1181,8 @@ function selectTool(tool) {
 }
 
 function switchMode(mode) {
-  const url = new URL(window.location.origin + (mode === "endless" ? "/page2.html" : "/index.html"));
+  const page = mode === "endless" ? "/page2.html" : mode === "guess" ? "/guess.html" : "/index.html";
+  const url = new URL(window.location.origin + page);
   url.searchParams.set("room", roomId);
   window.location.href = url.toString();
 }
